@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Icepops Reports</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Chart colours: validated for colour-blind separation on both page surfaces. */
+:root {
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-other: #8C9CA0;
+  --grid: #D5E8EB; --wash: rgba(42, 120, 214, .08);
+  --up: #006300; --down: #B3261E;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-other: #7E9196;
+    --grid: #22464F; --wash: rgba(57, 135, 229, .14);
+    --up: #5FD08A; --down: #FF8A80;
+  }
+}
+:root[data-theme="dark"] {
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-other: #7E9196;
+  --grid: #22464F; --wash: rgba(57, 135, 229, .14);
+  --up: #5FD08A; --down: #FF8A80;
+}
+
+.panel {
+  display: grid; gap: 14px; align-content: start; min-width: 0;
+  padding: 18px;
+  background: var(--surface); border: 2px solid var(--line); border-radius: 18px;
+}
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.panel-head h2 { font: 400 1.375rem/1.15 var(--display); }
+.panel-sub { font-size: .875rem; color: var(--muted); }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+
+/* Filters */
+.filters { display: grid; gap: 12px; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.chip {
+  flex: none; height: 38px; padding: 0 14px;
+  border: 2px solid var(--line); border-radius: 999px;
+  background: transparent; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.chip:hover { border-color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.range-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
+.range-row .field { width: 160px; }
+.range-caption { font-size: .875rem; color: var(--muted); padding-bottom: 10px; }
+.ghost {
+  height: 40px; padding: 0 14px; margin-left: auto;
+  border: 2px solid var(--line); border-radius: 10px;
+  background: transparent; font-weight: 600; cursor: pointer;
+}
+.ghost:hover { border-color: var(--ink); }
+a.ghost { display: inline-flex; align-items: center; margin-left: 0; color: var(--ink); font-weight: 600; text-decoration: none; }
+.range-row select { height: 40px; padding: 0 10px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.demo-note { padding: 10px 14px; border-radius: 12px; background: var(--low-bg); color: var(--low-ink); font-weight: 600; font-size: .9375rem; }
+
+/* Stat tiles */
+.tiles { display: grid; grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)); gap: 12px; }
+.tile { display: grid; gap: 6px; align-content: start; padding: 16px 18px; background: var(--surface); border: 2px solid var(--line); border-radius: 18px; min-width: 0; }
+.tile.hero { background: var(--paper); border-color: var(--accent); }
+.tile-label { font: 500 .75rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.tile-value { font: 400 2rem/1.05 var(--display); overflow-wrap: anywhere; }
+.tile.hero .tile-value { font-size: clamp(2.5rem, 5vw, 3.5rem); color: var(--accent); }
+.delta { font-size: .8125rem; font-weight: 600; color: var(--muted); }
+.delta.up { color: var(--up); }
+.delta.down { color: var(--down); }
+
+.facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.fact { display: grid; gap: 2px; min-width: 0; padding-left: 12px; border-left: 3px solid var(--line); }
+.fact-label { font-size: .8125rem; color: var(--muted); }
+.fact-value { font-weight: 700; overflow-wrap: anywhere; }
+.fact-sub { font: 400 .8125rem/1.4 var(--mono); color: var(--muted); }
+
+/* Segmented control */
+.seg { display: inline-flex; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; }
+.seg button { height: 36px; padding: 0 14px; border: 0; background: transparent; font-weight: 600; cursor: pointer; }
+.seg button + button { border-left: 2px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.seg button:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Charts */
+.chart { position: relative; min-width: 0; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart svg:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; border-radius: 6px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--line); stroke-width: 1; }
+.chart .tick { fill: var(--muted); font: 400 11px var(--mono); }
+.chart .bar { fill: var(--series-1); }
+.chart .band { fill: transparent; }
+.chart .band.on { fill: var(--wash); }
+.chart .peak { fill: var(--ink); font: 600 11px var(--body); }
+.chart-empty { padding: 48px 12px; text-align: center; color: var(--muted); border: 2px dashed var(--line); border-radius: 14px; }
+.tip {
+  position: absolute; z-index: 3; pointer-events: none;
+  min-width: 150px; padding: 10px 12px;
+  background: var(--paper); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 8px 20px var(--shadow);
+  font-size: .8125rem; line-height: 1.45;
+}
+.tip strong { display: block; font-size: .875rem; }
+.tip span { display: flex; justify-content: space-between; gap: 14px; }
+.tip b { font-family: var(--mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* Tables */
+.table-wrap { overflow: auto; max-height: 360px; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+th, td { padding: 8px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+thead th { position: sticky; top: 0; background: var(--surface); font: 500 .6875rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+tfoot td { position: sticky; bottom: 0; background: var(--paper); font-weight: 700; border-top: 2px solid var(--line); border-bottom: 0; }
+td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.wrap { white-space: normal; min-width: 220px; }
+tbody tr:hover { background: var(--wash); }
+.bill-link { color: var(--accent); font-weight: 700; font-family: var(--mono); }
+.cell-sub { font: 400 .75rem/1.3 var(--mono); color: var(--muted); }
+
+/* Flavour ranking */
+.ranks { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.rank { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; }
+.rank svg { height: 34px; width: auto; grid-row: span 2; }
+.rank-name { font-weight: 600; overflow-wrap: anywhere; }
+.rank-name .tag { margin-left: 6px; vertical-align: 1px; }
+.rank-value { font: 500 .875rem/1.2 var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.rank-track { grid-column: 2 / 4; display: flex; align-items: center; gap: 10px; }
+.rank-bar { height: 10px; border-radius: 0 4px 4px 0; background: var(--series-1); min-width: 2px; }
+.cat-ranks .rank { grid-template-columns: minmax(0, 1fr) auto; }
+.cat-ranks .rank-track { grid-column: 1 / 3; }
+.rank-meta { flex: none; font: 400 .75rem/1 var(--mono); color: var(--muted); }
+
+/* Payment split */
+.split { display: flex; gap: 2px; height: 28px; }
+.split div { display: flex; align-items: center; padding-left: 8px; border-radius: 4px; color: #fff; font: 600 .75rem/1 var(--body); overflow: hidden; white-space: nowrap; min-width: 0; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; }
+.legend-name { font-weight: 600; }
+.legend-meta { font: 400 .8125rem/1.3 var(--mono); color: var(--muted); }
+.legend-value { font: 500 .9375rem/1.2 var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+.more { justify-self: start; height: 40px; padding: 0 16px; border: 2px solid var(--line); border-radius: 10px; background: transparent; font-weight: 600; cursor: pointer; }
+.more:hover { border-color: var(--ink); }
+.foot { font-size: .8125rem; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tile.hero { grid-column: 1 / -1; }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .two { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .range-row .field { width: calc(50% - 7px); }
+  .ghost { margin-left: 0; }
+}
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <div class="masthead-text">
+      <p class="eyebrow">Franchise reports</p>
+      <h1>Reports</h1>
+      <p class="lede">Sales by day, month and year, by item, category, payment and time of day.</p>
+    </div>
+    <nav class="nav" id="nav" aria-label="Pages"></nav>
+  </header>
+
+  <p class="banner" id="banner" role="alert" hidden></p>
+  <p class="plan-banner" id="plan-banner" hidden></p>
+  <p class="demo-note" id="demo-note" hidden>Demo data. These are example sales in the demo database. Run npm start to see your real sales.</p>
+
+  <section class="filters" aria-label="Period">
+    <div class="chips" id="chips" role="group" aria-label="Quick periods"></div>
+    <div class="range-row">
+      <label class="field" for="range-from">From <input id="range-from" type="date"></label>
+      <label class="field" for="range-to">To <input id="range-to" type="date"></label>
+      <p class="range-caption" id="range-caption"></p>
+      <label class="field" for="scope" id="scope-field" hidden>Outlets
+        <select id="scope"><option value="outlet">This outlet</option><option value="all">All outlets</option></select>
+      </label>
+      <button class="ghost" id="reload" type="button">Reload data</button>
+      <a class="ghost" id="download" href="/api/download">Download Excel</a>
+    </div>
+  </section>
+
+  <section class="tiles" aria-label="Summary">
+    <div class="tile hero"><span class="tile-label">Total sales</span><span class="tile-value" id="t-sales">₹0</span><span class="delta" id="d-sales"></span></div>
+    <div class="tile"><span class="tile-label">Bills</span><span class="tile-value" id="t-bills">0</span><span class="delta" id="d-bills"></span></div>
+    <div class="tile"><span class="tile-label">Items sold</span><span class="tile-value" id="t-qty">0</span><span class="delta" id="d-qty"></span></div>
+    <div class="tile"><span class="tile-label">Average bill</span><span class="tile-value" id="t-avg">₹0</span><span class="delta" id="d-avg"></span></div>
+  </section>
+
+  <section class="facts" aria-label="Highlights">
+    <div class="fact"><span class="fact-label">Best day</span><span class="fact-value" id="f-day">None yet</span><span class="fact-sub" id="f-day-sub"></span></div>
+    <div class="fact"><span class="fact-label">Top item</span><span class="fact-value" id="f-flavour">None yet</span><span class="fact-sub" id="f-flavour-sub"></span></div>
+    <div class="fact"><span class="fact-label">Busiest hour</span><span class="fact-value" id="f-hour">None yet</span><span class="fact-sub" id="f-hour-sub"></span></div>
+    <div class="fact"><span class="fact-label">Busiest weekday</span><span class="fact-value" id="f-weekday">None yet</span><span class="fact-sub" id="f-weekday-sub"></span></div>
+  </section>
+
+  <section class="panel" aria-labelledby="trend-title">
+    <div class="panel-head">
+      <div>
+        <h2 id="trend-title">Sales by day</h2>
+        <p class="panel-sub" id="trend-sub"></p>
+      </div>
+      <div class="seg" role="group" aria-label="Group sales by">
+        <button type="button" data-unit="day" aria-pressed="true">Day-wise</button>
+        <button type="button" data-unit="month" aria-pressed="false">Month-wise</button>
+        <button type="button" data-unit="year" aria-pressed="false">Year-wise</button>
+      </div>
+    </div>
+    <div class="chart" id="trend-chart"></div>
+    <div class="table-wrap"><table id="trend-table"></table></div>
+  </section>
+
+  <div class="two">
+    <section class="panel" aria-labelledby="flavour-title">
+      <div class="panel-head">
+        <h2 id="flavour-title">Item-wise sales</h2>
+        <p class="panel-sub">Ranked by sales</p>
+      </div>
+      <ul class="ranks" id="ranks"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="pay-title">
+      <div class="panel-head">
+        <h2 id="pay-title">Payment-wise sales</h2>
+        <p class="panel-sub">Share of sales</p>
+      </div>
+      <div class="split" id="split" role="img"></div>
+      <ul class="legend" id="pay-legend"></ul>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="cat-title">
+    <div class="panel-head">
+      <h2 id="cat-title">Category-wise sales</h2>
+      <p class="panel-sub">Ranked by sales</p>
+    </div>
+    <ul class="ranks cat-ranks" id="cat-ranks"></ul>
+  </section>
+
+  <div class="two">
+    <section class="panel" aria-labelledby="hour-title">
+      <div class="panel-head">
+        <h2 id="hour-title">Hour-wise sales</h2>
+        <p class="panel-sub">Total sales in each hour of the day</p>
+      </div>
+      <div class="chart" id="hour-chart"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="weekday-title">
+      <div class="panel-head">
+        <h2 id="weekday-title">Weekday-wise sales</h2>
+        <p class="panel-sub">Average sales per day</p>
+      </div>
+      <div class="chart" id="weekday-chart"></div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="year-title">
+    <div class="panel-head">
+      <h2 id="year-title">Year-wise summary</h2>
+      <p class="panel-sub">All data. The current year is compared with the same dates last year.</p>
+    </div>
+    <div class="table-wrap"><table id="year-table"></table></div>
+  </section>
+
+  <section class="panel" aria-labelledby="bills-title">
+    <div class="panel-head">
+      <h2 id="bills-title">Bills</h2>
+      <p class="panel-sub" id="bills-sub"></p>
+    </div>
+    <div class="table-wrap"><table id="bills-table"></table></div>
+    <button class="more" id="more-bills" type="button" hidden>Show 25 more</button>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script src="store.js"></script>
+<script src="analytics.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const A = Analytics;
+
+const view = { preset: "30d", range: null, unit: "day", unitChosen: false, billsShown: 25, scope: "outlet" };
+let data = null;
+let filtered = null;
+
+// ---------- Formatting ----------
+
+const compact = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 });
+const utc = (s) => new Date(A.parseDay(s));
+const fmt = (s, opts) => utc(s).toLocaleDateString("en-IN", { timeZone: "UTC", ...opts });
+const dayLong = (s) => fmt(s, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+const dayShort = (s) => fmt(s, { day: "numeric", month: "short" });
+const rangeText = (r) => r.from === r.to ? dayLong(r.from) : `${fmt(r.from, { day: "numeric", month: "short", year: "numeric" })} to ${fmt(r.to, { day: "numeric", month: "short", year: "numeric" })}`;
+const hourText = (h) => { const p = (x) => `${x % 12 || 12} ${x < 12 || x === 24 ? "am" : "pm"}`; return `${p(h)} to ${p(h + 1)}`; };
+const hourTick = (h) => `${h % 12 || 12}${h < 12 ? "a" : "p"}`;
+const pct = (x) => `${Math.round(x * 100)}%`;
+const moneyTick = (v, top) => top >= 10000 ? CURRENCY + compact.format(v) : money(v);
+
+function bucketLabel(key, unit, long) {
+  if (unit === "day") return long ? dayLong(key) : dayShort(key);
+  if (unit === "month") return fmt(key + "-01", long ? { month: "long", year: "numeric" } : { month: "short", year: "2-digit" });
+  return key;
+}
+
+function deltaHtml(el, cur, prev, label) {
+  const c = A.change(cur, prev);
+  el.className = "delta";
+  if (c === null) { el.textContent = prev === 0 && cur > 0 ? `New ${label}` : ""; return; }
+  const dir = c > 0.0005 ? "up" : c < -0.0005 ? "down" : "";
+  el.classList.toggle("up", dir === "up");
+  el.classList.toggle("down", dir === "down");
+  el.textContent = `${dir === "up" ? "▲" : dir === "down" ? "▼" : "■"} ${pct(Math.abs(c))} ${label}`;
+}
+
+// ---------- Column chart (SVG) ----------
+
+function niceTicks(max) {
+  if (max <= 0) return [0, 1];
+  const raw = max / 4;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / pow;
+  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * pow;
+  const ticks = [];
+  for (let v = 0; v < max + step * 0.001; v += step) ticks.push(Math.round(v * 100) / 100);
+  if (ticks[ticks.length - 1] < max) ticks.push(ticks[ticks.length - 1] + step);
+  return ticks;
+}
+
+function columnChart(el, rows, opts) {
+  el.innerHTML = "";
+  if (!rows.length || rows.every((r) => opts.value(r) === 0)) {
+    el.innerHTML = `<p class="chart-empty">${opts.empty}</p>`;
+    return;
+  }
+  const W = Math.max(280, Math.round(el.clientWidth || 600));
+  const H = opts.height || 240;
+  const m = { t: 22, r: 6, b: 26, l: 56 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const values = rows.map(opts.value);
+  const ticks = niceTicks(Math.max(...values));
+  const top = ticks[ticks.length - 1];
+  const band = iw / rows.length;
+  const bw = Math.max(2, Math.min(24, band * 0.7));
+  const y = (v) => m.t + ih - (v / top) * ih;
+  const base = m.t + ih;
+  const every = Math.max(1, Math.ceil(rows.length / Math.max(1, Math.floor(iw / (opts.tickWidth || 52)))));
+  const peak = values.indexOf(Math.max(...values));
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" tabindex="0" aria-label="${esc(opts.title)}. Use the left and right arrow keys to read each value.">`;
+  for (const t of ticks) {
+    s += `<line class="${t === 0 ? "baseline" : "gridline"}" x1="${m.l}" x2="${W - m.r}" y1="${y(t)}" y2="${y(t)}"/>`;
+    s += `<text class="tick" x="${m.l - 8}" y="${y(t) + 4}" text-anchor="end">${esc(opts.tick(t, top))}</text>`;
+  }
+  rows.forEach((r, i) => {
+    const x0 = m.l + i * band;
+    s += `<rect class="band" data-i="${i}" x="${x0}" y="${m.t}" width="${band}" height="${ih}"/>`;
+  });
+  rows.forEach((r, i) => {
+    const v = values[i];
+    const x = m.l + i * band + (band - bw) / 2;
+    if (v > 0) {
+      const yt = y(v);
+      const rad = Math.min(4, bw / 2, base - yt);
+      s += `<path class="bar" d="M${x},${base}V${yt + rad}Q${x},${yt} ${x + rad},${yt}H${x + bw - rad}Q${x + bw},${yt} ${x + bw},${yt + rad}V${base}Z"/>`;
+    }
+    if (i % every === 0) {
+      s += `<text class="tick" x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${esc(opts.label(r))}</text>`;
+    }
+  });
+  const px = m.l + peak * band + band / 2;
+  const anchor = px < m.l + 40 ? "start" : px > W - 40 ? "end" : "middle";
+  s += `<text class="peak" x="${px}" y="${y(values[peak]) - 7}" text-anchor="${anchor}">${esc(opts.peakLabel(rows[peak]))}</text>`;
+  s += `</svg><div class="tip" hidden></div>`;
+  el.innerHTML = s;
+
+  const svg = el.querySelector("svg");
+  const tip = el.querySelector(".tip");
+  const bands = [...el.querySelectorAll(".band")];
+  let current = -1;
+
+  function show(i) {
+    current = i;
+    bands.forEach((b, j) => b.classList.toggle("on", j === i));
+    tip.innerHTML = opts.tip(rows[i]);
+    tip.hidden = false;
+    const scale = el.clientWidth / W;
+    const cx = (m.l + i * band + band / 2) * scale;
+    const left = Math.min(Math.max(0, cx - tip.offsetWidth / 2), el.clientWidth - tip.offsetWidth);
+    tip.style.left = left + "px";
+    tip.style.top = Math.max(0, y(values[i]) * scale - tip.offsetHeight - 12) + "px";
+  }
+  function hide() { current = -1; tip.hidden = true; bands.forEach((b) => b.classList.remove("on")); }
+
+  svg.addEventListener("mousemove", (e) => {
+    const b = e.target.closest(".band, .bar");
+    if (b && b.classList.contains("band")) show(Number(b.dataset.i));
+    else if (b) {
+      const rect = svg.getBoundingClientRect();
+      const i = Math.floor(((e.clientX - rect.left) / rect.width * W - m.l) / band);
+      if (i >= 0 && i < rows.length) show(i);
+    }
+  });
+  svg.addEventListener("mouseleave", hide);
+  svg.addEventListener("blur", hide);
+  svg.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    e.preventDefault();
+    const next = current < 0 ? (e.key === "ArrowRight" ? 0 : rows.length - 1) : current + (e.key === "ArrowRight" ? 1 : -1);
+    show(Math.min(rows.length - 1, Math.max(0, next)));
+  });
+}
+
+const tipRows = (title, pairs) => `<strong>${esc(title)}</strong>${pairs.map(([k, v]) => `<span>${esc(k)} <b>${esc(v)}</b></span>`).join("")}`;
+
+// ---------- Rendering ----------
+
+function firstDay() {
+  return data && data.bills.length ? data.bills.reduce((m, b) => (b.date < m ? b.date : m), data.bills[0].date) : null;
+}
+
+function setRange(preset, range) {
+  view.preset = preset;
+  view.range = range || A.presetRange(preset, A.localToday(), firstDay());
+  if (!view.unitChosen) {
+    const days = A.daysIn(view.range);
+    view.unit = days <= 92 ? "day" : days <= 1100 ? "month" : "year";
+  }
+  if (view.unit === "day" && A.daysIn(view.range) > 92) view.unit = "month";
+  view.billsShown = 25;
+  render();
+}
+
+function renderChips() {
+  $("chips").innerHTML = A.PRESETS.map((p) => `<button class="chip" type="button" data-preset="${p.key}" aria-pressed="${view.preset === p.key}">${p.label}</button>`).join("");
+}
+
+function renderTiles(cur, prev, prevRange) {
+  $("t-sales").textContent = money(cur.sales);
+  $("t-bills").textContent = cur.bills.toLocaleString("en-IN");
+  $("t-qty").textContent = cur.qty.toLocaleString("en-IN");
+  $("t-avg").textContent = money(cur.avg);
+  const label = prevRange ? `vs previous ${A.daysIn(prevRange) === 1 ? "day" : A.daysIn(prevRange) + " days"}` : "";
+  const p = prev || { sales: null, bills: null, qty: null, avg: null };
+  [["d-sales", "sales"], ["d-bills", "bills"], ["d-qty", "qty"], ["d-avg", "avg"]].forEach(([id, k]) => {
+    if (!prevRange) { $(id).textContent = ""; return; }
+    deltaHtml($(id), cur[k], p[k], label);
+  });
+}
+
+function renderFacts(bills, items, r) {
+  const best = A.bestDay(bills);
+  $("f-day").textContent = best ? dayLong(best.date) : "None yet";
+  $("f-day-sub").textContent = best ? money(best.sales) : "";
+
+  const top = A.byFlavour(items, data.flavours)[0];
+  $("f-flavour").textContent = top ? top.name : "None yet";
+  $("f-flavour-sub").textContent = top ? `${pops(top.qty)}, ${money(top.sales)}` : "";
+
+  const hours = A.byHour(bills);
+  const h = hours.reduce((m, x) => (x.sales > m.sales ? x : m), hours[0]);
+  $("f-hour").textContent = h.sales ? hourText(h.hour) : "None yet";
+  $("f-hour-sub").textContent = h.sales ? `${money(h.sales)} in ${h.bills} bills` : "";
+
+  const wd = A.byWeekday(bills, r).reduce((m, x) => (x.avg > m.avg ? x : m));
+  const full = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
+  $("f-weekday").textContent = wd.avg ? full[wd.name] : "None yet";
+  $("f-weekday-sub").textContent = wd.avg ? `${money(wd.avg)} a day on average` : "";
+}
+
+function renderTrend(bills, r) {
+  const unit = view.unit;
+  const rows = A.trend(bills, r, unit);
+  const names = { day: "day", month: "month", year: "year" };
+  $("trend-title").textContent = `Sales by ${names[unit]}`;
+  $("trend-sub").textContent = rangeText(r);
+  const tooMany = A.daysIn(r) > 92;
+  document.querySelectorAll(".seg button").forEach((b) => {
+    b.setAttribute("aria-pressed", b.dataset.unit === unit);
+    if (b.dataset.unit === "day") {
+      b.disabled = tooMany;
+      b.title = tooMany ? "Day-wise needs a period of 92 days or less." : "";
+    }
+  });
+
+  columnChart($("trend-chart"), rows, {
+    title: `Sales by ${names[unit]}, ${rangeText(r)}`,
+    value: (x) => x.sales,
+    tick: moneyTick,
+    label: (x) => bucketLabel(x.key, unit, false),
+    peakLabel: (x) => money(x.sales),
+    tickWidth: unit === "day" ? 56 : 60,
+    empty: `No sales between ${rangeText(r)}.`,
+    tip: (x) => tipRows(bucketLabel(x.key, unit, true), [["Sales", money(x.sales)], ["Bills", x.bills], ["Items", x.qty], ["Average bill", money(x.avg)]])
+  });
+
+  const total = A.summarize(bills);
+  const label = unit === "day" ? "Day" : unit === "month" ? "Month" : "Year";
+  $("trend-table").innerHTML = `
+    <thead><tr><th>${label}</th><th class="num">Bills</th><th class="num">Items</th><th class="num">Sales</th><th class="num">Average bill</th></tr></thead>
+    <tbody>${rows.slice().reverse().map((x) => `<tr><td>${esc(bucketLabel(x.key, unit, true))}</td><td class="num">${x.bills}</td><td class="num">${x.qty}</td><td class="num">${money(x.sales)}</td><td class="num">${money(x.avg)}</td></tr>`).join("")}</tbody>
+    <tfoot><tr><td>Total</td><td class="num">${total.bills}</td><td class="num">${total.qty}</td><td class="num">${money(total.sales)}</td><td class="num">${money(total.avg)}</td></tr></tfoot>`;
+}
+
+function renderFlavours(items) {
+  const rows = A.byFlavour(items, data.flavours);
+  if (!rows.length) { $("ranks").innerHTML = `<li class="chart-empty">Nothing sold in this period.</li>`; return; }
+  const max = rows[0].sales || 1;
+  $("ranks").innerHTML = rows.map((f) => `
+    <li class="rank">
+      ${itemArt(f, "r")}
+      <span class="rank-name">${esc(f.name)}${f.active ? "" : `<span class="tag out">Off menu</span>`}</span>
+      <span class="rank-value">${money(f.sales)}</span>
+      <span class="rank-track">
+        <span class="rank-bar" style="width:${Math.max(1, (f.sales / max) * 100).toFixed(1)}%"></span>
+        <span class="rank-meta">${pops(f.qty)} · ${pct(f.share)}</span>
+      </span>
+    </li>`).join("");
+}
+
+function renderCategories(items) {
+  const rows = A.byCategory(items, data.flavours);
+  if (!rows.length) { $("cat-ranks").innerHTML = `<li class="chart-empty">Nothing sold in this period.</li>`; return; }
+  const max = rows[0].sales || 1;
+  $("cat-ranks").innerHTML = rows.map((c) => `
+    <li class="rank">
+      <span class="rank-name">${esc(c.name)}</span>
+      <span class="rank-value">${money(c.sales)}</span>
+      <span class="rank-track">
+        <span class="rank-bar" style="width:${Math.max(1, (c.sales / max) * 100).toFixed(1)}%"></span>
+        <span class="rank-meta">${pops(c.qty)} · ${pct(c.share)}</span>
+      </span>
+    </li>`).join("");
+}
+
+function renderPayments(bills) {
+  const rows = A.byPayment(bills).filter((p) => p.bills > 0 || A.PAYMENT_ORDER.includes(p.method));
+  const colour = { UPI: "var(--series-1)", Cash: "var(--series-2)", Card: "var(--series-3)" };
+  const total = rows.reduce((s, p) => s + p.sales, 0);
+  if (!total) {
+    $("split").innerHTML = "";
+    $("split").hidden = true;
+  } else {
+    $("split").hidden = false;
+    $("split").setAttribute("aria-label", rows.filter((p) => p.sales).map((p) => `${p.method} ${pct(p.share)}`).join(", "));
+    $("split").innerHTML = rows.filter((p) => p.sales > 0).map((p) =>
+      `<div style="flex:${p.sales} 1 0;background:${colour[p.method] || "var(--series-other)"}" title="${esc(p.method)}: ${money(p.sales)} (${pct(p.share)})">${p.share >= 0.12 ? pct(p.share) : ""}</div>`).join("");
+  }
+  $("pay-legend").innerHTML = rows.map((p) => `
+    <li>
+      <span class="swatch" style="background:${colour[p.method] || "var(--series-other)"}"></span>
+      <span><span class="legend-name">${esc(p.method)}</span><br><span class="legend-meta">${p.bills} bills · ${pct(p.share)}</span></span>
+      <span class="legend-value">${money(p.sales)}</span>
+    </li>`).join("");
+}
+
+function renderHours(bills, allBills) {
+  const hours = A.byHour(bills);
+  const used = A.byHour(allBills).filter((h) => h.bills > 0).map((h) => h.hour);
+  const from = Math.min(10, ...used), to = Math.max(21, ...used);
+  columnChart($("hour-chart"), hours.slice(from, to + 1), {
+    title: "Sales in each hour of the day",
+    height: 200,
+    value: (x) => x.sales,
+    tick: moneyTick,
+    label: (x) => hourTick(x.hour),
+    peakLabel: (x) => money(x.sales),
+    tickWidth: 34,
+    empty: "No sales in this period.",
+    tip: (x) => tipRows(hourText(x.hour), [["Sales", money(x.sales)], ["Bills", x.bills], ["Items", x.qty]])
+  });
+}
+
+function renderWeekdays(bills, r) {
+  const rows = A.byWeekday(bills, r);
+  columnChart($("weekday-chart"), rows, {
+    title: "Average sales per day for each weekday",
+    height: 200,
+    value: (x) => x.avg,
+    tick: moneyTick,
+    label: (x) => x.name,
+    peakLabel: (x) => money(x.avg),
+    tickWidth: 34,
+    empty: "No sales in this period.",
+    tip: (x) => tipRows(x.name, [["Average a day", money(x.avg)], ["Total", money(x.sales)], ["Bills", x.bills], ["Days in period", x.days]])
+  });
+}
+
+function renderYears() {
+  const rows = A.yearly(data.bills, A.localToday());
+  if (!rows.length) { $("year-table").innerHTML = `<tbody><tr><td>No sales yet.</td></tr></tbody>`; return; }
+  const growth = (g) => g === null ? "–" : `${g >= 0 ? "▲" : "▼"} ${pct(Math.abs(g))}`;
+  $("year-table").innerHTML = `
+    <thead><tr><th>Year</th><th class="num">Bills</th><th class="num">Items</th><th class="num">Sales</th><th class="num">Average bill</th><th class="num">Growth</th></tr></thead>
+    <tbody>${rows.slice().reverse().map((y) => `<tr><td>${y.year}${y.partial ? " (to date)" : ""}</td><td class="num">${y.bills.toLocaleString("en-IN")}</td><td class="num">${y.qty.toLocaleString("en-IN")}</td><td class="num">${money(y.sales)}</td><td class="num">${money(y.avg)}</td><td class="num">${growth(y.growth)}</td></tr>`).join("")}</tbody>`;
+}
+
+function renderBills(bills) {
+  const list = bills.slice().sort((a, b) => b.billNo - a.billNo);
+  const shown = list.slice(0, view.billsShown);
+  $("bills-sub").textContent = list.length ? `${list.length.toLocaleString("en-IN")} bills, newest first` : "";
+  $("bills-table").innerHTML = list.length ? `
+    <thead><tr><th>Bill no</th><th>Date</th><th>Time</th><th>Customer</th><th>Items</th><th>Payment</th><th class="num">Total</th></tr></thead>
+    <tbody>${shown.map((b) => `<tr><td><a class="bill-link" href="bill.html?no=${b.billNo}" target="_blank" rel="noopener">${b.billNo}</a></td><td>${esc(fmt(b.date, { day: "numeric", month: "short", year: "numeric" }))}</td><td>${esc(b.time)}</td><td>${esc(b.customer || "–")}${b.phone ? `<br><span class="cell-sub">${esc(formatPhone(b.phone))}</span>` : ""}</td><td class="wrap">${esc(b.summary)}</td><td>${esc(b.payment)}</td><td class="num">${money(b.total)}</td></tr>`).join("")}</tbody>`
+    : `<tbody><tr><td>No bills in this period.</td></tr></tbody>`;
+  $("more-bills").hidden = list.length <= view.billsShown;
+}
+
+function renderCharts() {
+  if (!filtered) return;
+  renderTrend(filtered.bills, view.range);
+  renderHours(filtered.bills, data.bills);
+  renderWeekdays(filtered.bills, view.range);
+}
+
+function render() {
+  if (!data) return;
+  const r = view.range;
+  renderChips();
+  $("range-from").value = r.from;
+  $("range-to").value = r.to;
+  $("range-to").max = A.localToday();
+
+  const bills = A.within(data.bills, r);
+  const items = A.within(data.items, r);
+  filtered = { bills, items };
+
+  const prevRange = view.preset === "all" ? null : A.previousRange(r);
+  const prev = prevRange ? A.summarize(A.within(data.bills, prevRange)) : null;
+  $("range-caption").textContent = rangeText(r) + (prevRange ? `, compared with the ${A.daysIn(prevRange) === 1 ? "day" : A.daysIn(prevRange) + " days"} before` : "");
+
+  renderTiles(A.summarize(bills), prev, prevRange);
+  renderFacts(bills, items, r);
+  renderCharts();
+  renderFlavours(items);
+  renderCategories(items);
+  renderPayments(bills);
+  renderYears();
+  renderBills(bills);
+}
+
+async function load() {
+  try {
+    data = await api(`/api/report-data?scope=${view.scope}`);
+    showBanner("");
+    $("demo-note").hidden = !data.demo;
+    const now = new Date();
+    $("foot").textContent = `${data.source}. Loaded at ${now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}, ${data.bills.length.toLocaleString("en-IN")} bills in total.`;
+    setRange(view.preset, view.preset === "custom" ? view.range : null);
+  } catch (e) {
+    showBanner(e.message);
+  }
+}
+
+// ---------- Events ----------
+
+$("chips").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-preset]");
+  if (!b) return;
+  view.unitChosen = false;
+  setRange(b.dataset.preset);
+  const again = document.querySelector(`[data-preset="${b.dataset.preset}"]`);
+  if (again) again.focus();
+});
+
+function customRange() {
+  let from = $("range-from").value, to = $("range-to").value;
+  if (!from || !to) return;
+  if (from > to) [from, to] = [to, from];
+  view.unitChosen = false;
+  setRange("custom", { from, to });
+}
+$("range-from").addEventListener("change", customRange);
+$("range-to").addEventListener("change", customRange);
+
+document.querySelector(".seg").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-unit]");
+  if (!b || b.disabled) return;
+  view.unit = b.dataset.unit;
+  view.unitChosen = true;
+  renderTrend(filtered.bills, view.range);
+});
+
+$("more-bills").addEventListener("click", () => {
+  view.billsShown += 25;
+  renderBills(filtered.bills);
+});
+
+$("reload").addEventListener("click", load);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+
+let resizeFrame = 0;
+new ResizeObserver(() => {
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(renderCharts);
+}).observe($("trend-chart"));
+
+$("scope").addEventListener("change", () => {
+  view.scope = $("scope").value;
+  $("download").href = `/api/download?scope=${view.scope}`;
+  load();
+});
+
+startPage("reports").then((me) => {
+  if (!me) return;
+  if (me.outlets.length > 1) {
+    $("scope-field").hidden = false;
+    view.scope = "all";
+    $("scope").value = "all";
+  }
+  $("download").href = `/api/download?scope=${view.scope}`;
+  renderChips();
+  load();
+});
+</script>
+</html>

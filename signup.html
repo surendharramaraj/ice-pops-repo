@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Icepops Sign-up</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+.plans-mini { display: grid; gap: 6px; font-size: .875rem; color: var(--muted); }
+.plans-mini b { color: var(--ink); }
+</style>
+
+<div class="page auth-page">
+  <header class="masthead">
+    <div class="masthead-text">
+      <p class="eyebrow">Counter billing for ice-pop shops and cafés</p>
+      <h1>Icepops</h1>
+      <p class="lede" id="trial-line">Start a 14-day free trial. No card needed.</p>
+    </div>
+  </header>
+
+  <form class="auth-card" id="signup" novalidate>
+    <h2 class="panel-title">Create your account</h2>
+    <label class="field" for="business">Business name
+      <input id="business" type="text" maxlength="60" autocomplete="organization" placeholder="Kulfi Corner">
+    </label>
+    <label class="field" for="outlet">First outlet
+      <input id="outlet" type="text" maxlength="60" placeholder="Anna Nagar">
+    </label>
+    <label class="field" for="name">Your name
+      <input id="name" type="text" maxlength="60" autocomplete="name">
+    </label>
+    <label class="field" for="phone">Shop phone (optional)
+      <input id="phone" type="tel" maxlength="20" autocomplete="tel">
+    </label>
+    <label class="field" for="email">Email
+      <input id="email" type="email" autocomplete="email">
+    </label>
+    <label class="field" for="password">Password (8 characters or more)
+      <input id="password" type="password" autocomplete="new-password" minlength="8">
+    </label>
+    <label class="check" for="starter"><input id="starter" type="checkbox" checked> Start with 8 sample ice-pop flavours (you can edit or remove them)</label>
+    <button class="add-btn" id="submit" type="submit">Start free trial</button>
+    <p class="form-note" id="note" role="status"></p>
+    <div class="plans-mini" id="plans-mini"></div>
+  </form>
+
+  <p class="auth-alt">Already have an account? <a href="login.html">Log in</a></p>
+</div>
+
+<script src="store.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+
+api("/api/plans", { noRedirect: true }).then((d) => {
+  $("trial-line").textContent = `Start a ${d.trialDays}-day free trial. No card needed.`;
+  $("plans-mini").innerHTML = "After the trial: " + d.plans.map((p) =>
+    `<span><b>${esc(p.name)}</b> ${p.selfServe ? `${money(p.price)} a month` : "custom pricing"}</span>`).join("");
+}).catch(() => {});
+
+$("signup").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const note = $("note");
+  const body = {
+    businessName: $("business").value.trim(),
+    outletName: $("outlet").value.trim(),
+    name: $("name").value.trim(),
+    phone: $("phone").value.trim(),
+    email: $("email").value.trim(),
+    password: $("password").value,
+    starterMenu: $("starter").checked
+  };
+  const missing = [["business", "your business name"], ["outlet", "your first outlet's name"], ["name", "your name"], ["email", "your email"]]
+    .find(([id]) => !$(id).value.trim());
+  const fail = (msg, id) => { note.textContent = msg; note.classList.add("bad"); if (id) $(id).focus(); };
+  if (missing) return fail(`Enter ${missing[1]}.`, missing[0]);
+  if (body.password.length < 8) return fail("Use a password of at least 8 characters.", "password");
+
+  $("submit").disabled = true;
+  $("submit").textContent = "Creating your account…";
+  try {
+    await api("/api/auth/signup", { method: "POST", body, noRedirect: true });
+    location.href = "index.html";
+  } catch (err) {
+    fail(err.message);
+    $("submit").disabled = false;
+    $("submit").textContent = "Start free trial";
+  }
+});
+$("business").focus();
+</script>
+</html>

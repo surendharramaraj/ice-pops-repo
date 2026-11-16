@@ -1,0 +1,128 @@
+/* Shared look for the Icepops counter and inventory pages.
+   Layout: a freezer case of flavour cards, a till ticket, and an inventory ledger, all on icy ground. */
+:root {
+  --ice: #E4F3F5;
+  --surface: #FBFEFE;
+  --paper: #FFFDF7;
+  --ink: #10343D;
+  --muted: #4A6A72;
+  --line: #BCDADE;
+  --accent: #C4184F;
+  --on-accent: #FFFFFF;
+  --stick: #D9B382;
+  --shadow: rgba(16, 52, 61, .16);
+  --ok-bg: #D3F0E0; --ok-ink: #135C36;
+  --low-bg: #FFE9B8; --low-ink: #6B4700;
+  --out-bg: #F9D6DE; --out-ink: #8A1038;
+  --display: "Bagel Fat One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+  --body: "Figtree", "Helvetica Neue", Arial, sans-serif;
+  --mono: "DM Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ice: #0B2229; --surface: #12323B; --paper: #173B45; --ink: #E5F6F7; --muted: #A1C4CA;
+    --line: #2A545E; --accent: #FF7099; --on-accent: #2A0612; --stick: #C9A271; --shadow: rgba(0, 0, 0, .45);
+    --ok-bg: #123F2C; --ok-ink: #9BE6BD;
+    --low-bg: #4A3A12; --low-ink: #FFD98A;
+    --out-bg: #4E1B2C; --out-ink: #FFB3C6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ice: #0B2229; --surface: #12323B; --paper: #173B45; --ink: #E5F6F7; --muted: #A1C4CA;
+  --line: #2A545E; --accent: #FF7099; --on-accent: #2A0612; --stick: #C9A271; --shadow: rgba(0, 0, 0, .45);
+  --ok-bg: #123F2C; --ok-ink: #9BE6BD;
+  --low-bg: #4A3A12; --low-ink: #FFD98A;
+  --out-bg: #4E1B2C; --out-ink: #FFB3C6;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--ice);
+  color: var(--ink);
+  font: 400 1rem/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 48px;
+}
+h1, h2, p { margin: 0; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.page { max-width: 1160px; margin-inline: auto; display: grid; gap: 28px; }
+
+.masthead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.masthead-text { display: grid; gap: 4px; min-width: 0; }
+.eyebrow { font: 500 .75rem/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 400 clamp(3rem, 9vw, 5rem)/1 var(--display); color: var(--accent); text-wrap: balance; }
+.lede { color: var(--muted); font-size: 1.0625rem; }
+.nav-link {
+  display: inline-flex; align-items: center; height: 44px; padding: 0 18px;
+  border: 2px solid var(--ink); border-radius: 12px;
+  color: var(--ink); font-weight: 700; text-decoration: none;
+}
+.nav-link:hover { background: var(--ink); color: var(--ice); }
+.nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.nav-link.quiet { border-color: var(--line); background: transparent; cursor: pointer; font: inherit; font-weight: 700; }
+.nav-link[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: var(--ice); }
+.outlet-switch select {
+  height: 44px; padding: 0 12px; max-width: 220px;
+  border: 2px solid var(--line); border-radius: 12px;
+  background: var(--surface); color: var(--ink); font: inherit; font-weight: 600;
+}
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Trial and subscription notices */
+.plan-banner { padding: 10px 14px; border-radius: 12px; background: var(--ok-bg); color: var(--ok-ink); font-weight: 600; }
+.plan-banner.warn { background: var(--low-bg); color: var(--low-ink); }
+.plan-banner.bad { background: var(--out-bg); color: var(--out-ink); }
+.plan-banner a { color: inherit; }
+
+/* Login and sign-up */
+.auth-page { max-width: 460px; }
+.auth-card { display: grid; gap: 14px; padding: 24px; background: var(--surface); border: 2px solid var(--line); border-radius: 18px; }
+.auth-card .field input { height: 44px; }
+.auth-alt { text-align: center; color: var(--muted); }
+.auth-alt a, .auth-card a { color: var(--accent); font-weight: 700; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: .9375rem; }
+.check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+
+/* Server problems */
+.banner {
+  padding: 12px 16px; border-radius: 12px;
+  background: var(--out-bg); color: var(--out-ink); font-weight: 600;
+}
+
+/* Stock state tags */
+.tag {
+  display: inline-block; padding: 3px 8px; border-radius: 999px;
+  font: 500 .6875rem/1.3 var(--mono); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+}
+.tag.ok { background: var(--ok-bg); color: var(--ok-ink); }
+.tag.low { background: var(--low-bg); color: var(--low-ink); }
+.tag.out { background: var(--out-bg); color: var(--out-ink); }
+
+/* Form fields */
+.panel-title { font: 400 1.25rem/1.2 var(--display); }
+.field { display: grid; gap: 3px; font-size: .8125rem; font-weight: 600; color: var(--muted); }
+.field input {
+  width: 100%; height: 40px; padding: 0 10px;
+  border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink);
+  font-size: 1rem; font-weight: 400;
+}
+.field input[type="color"] { padding: 3px; cursor: pointer; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.add-btn {
+  height: 44px; border: 0; border-radius: 12px;
+  background: var(--accent); color: var(--on-accent); font-weight: 700; cursor: pointer;
+}
+.form-note { font-size: .8125rem; line-height: 1.35; min-height: 1.1em; color: var(--muted); }
+.form-note.bad { color: var(--accent); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

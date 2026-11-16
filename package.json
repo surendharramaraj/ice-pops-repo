@@ -1,0 +1,22 @@
+{
+  "name": "icepops",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Counter billing, inventory, reports and e-bills for ice-pop shops, sold as a subscription.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "demo": "node server.js --demo",
+    "import-excel": "node scripts/import-excel.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.2.17",
+    "dejavu-fonts-ttf": "2.37.3",
+    "exceljs": "4.4.0",
+    "pdfkit": "0.15.2",
+    "pg": "8.13.1"
+  }
+}

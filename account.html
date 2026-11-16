@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Icepops Account</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+.panel { display: grid; gap: 16px; align-content: start; min-width: 0; padding: 20px; background: var(--surface); border: 2px solid var(--line); border-radius: 18px; }
+.panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.panel-head h2 { font: 400 1.375rem/1.15 var(--display); }
+.panel-sub { font-size: .875rem; color: var(--muted); }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.status-line { font-size: .9375rem; font-weight: 600; }
+.status-line.bad { color: var(--accent); }
+
+/* Current plan and usage */
+.current { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.current-name { font: 400 1.75rem/1.1 var(--display); }
+.current-meta { color: var(--muted); }
+.meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.meter { display: grid; gap: 6px; }
+.meter-label { display: flex; justify-content: space-between; gap: 8px; font-size: .875rem; }
+.meter-label b { font-family: var(--mono); font-weight: 500; }
+.meter-track { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 999px; background: var(--series, #2a78d6); }
+.meter-fill.full { background: var(--accent); }
+
+/* Plan cards */
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.plan { display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px; padding: 18px; border: 2px solid var(--line); border-radius: 16px; background: var(--paper); }
+.plan.current-plan { border-color: var(--accent); }
+.plan-name { font: 400 1.375rem/1.1 var(--display); }
+.plan-price { font: 400 1.75rem/1 var(--display); color: var(--accent); }
+.plan-price small { font: 500 .8125rem/1 var(--body); color: var(--muted); }
+.plan ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .9375rem; }
+.btn {
+  height: 44px; padding: 0 16px; border-radius: 12px; font-weight: 700; cursor: pointer;
+  border: 2px solid var(--line); background: transparent; color: var(--ink);
+}
+.btn:hover:not(:disabled) { border-color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn:disabled { opacity: .5; cursor: default; }
+.test-note { padding: 10px 14px; border-radius: 12px; background: var(--low-bg); color: var(--low-ink); font-size: .875rem; font-weight: 600; }
+.cancel-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: .875rem; color: var(--muted); }
+
+/* Tables and forms */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+thead th { font: 500 .6875rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: var(--surface); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; font-family: var(--mono); }
+.muted { color: var(--muted); }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.form-grid .wide { grid-column: 1 / -1; }
+.field select {
+  width: 100%; height: 40px; padding: 0 10px; border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 400;
+}
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.small-btn { height: 34px; padding: 0 12px; border: 2px solid var(--line); border-radius: 9px; background: transparent; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.small-btn:hover { border-color: var(--ink); }
+.small-btn.danger:hover { border-color: var(--accent); color: var(--accent); }
+details.add { border-top: 1px dashed var(--line); padding-top: 12px; }
+details.add summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+details.add[open] summary { margin-bottom: 12px; }
+
+@media (max-width: 900px) {
+  .plans, .two { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .meters, .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <div class="masthead-text">
+      <p class="eyebrow">Account</p>
+      <h1>Account</h1>
+      <p class="lede">Your plan, business details, outlets and staff logins.</p>
+    </div>
+    <nav class="nav" id="nav" aria-label="Pages"></nav>
+  </header>
+
+  <p class="banner" id="banner" role="alert" hidden></p>
+  <p class="plan-banner" id="plan-banner" hidden></p>
+  <p class="status-line" id="status" role="status"></p>
+
+  <section class="panel" id="plan" aria-labelledby="plan-title">
+    <div class="panel-head">
+      <h2 id="plan-title">Plan and billing</h2>
+      <p class="panel-sub">Prices are per month and include all outlets on the plan.</p>
+    </div>
+    <div class="current" id="current"></div>
+    <div class="meters" id="meters"></div>
+    <p class="test-note" id="test-note" hidden>Test mode: choosing a plan switches it on for a month without taking payment. Set up Razorpay before you go live.</p>
+    <div class="plans" id="plans"></div>
+    <div class="cancel-row" id="cancel-row" hidden>
+      <button class="small-btn danger" id="cancel" type="button">Cancel plan</button>
+      <span id="cancel-help">Your plan stays active until the end of the period you've paid for.</span>
+    </div>
+    <div>
+      <h3 class="panel-sub">Payment history</h3>
+      <div class="table-wrap"><table id="payments"></table></div>
+    </div>
+  </section>
+
+  <div class="two">
+    <form class="panel" id="business" novalidate aria-labelledby="business-title">
+      <div class="panel-head">
+        <h2 id="business-title">Business details</h2>
+        <p class="panel-sub">Printed on every e-bill</p>
+      </div>
+      <div class="form-grid">
+        <label class="field wide" for="b-name">Business name <input id="b-name" type="text" maxlength="60"></label>
+        <label class="field wide" for="b-address">Address <input id="b-address" type="text" maxlength="160"></label>
+        <label class="field" for="b-phone">Phone <input id="b-phone" type="tel" maxlength="20"></label>
+        <label class="field" for="b-gstin">GSTIN (optional) <input id="b-gstin" type="text" maxlength="15" placeholder="29ABCDE1234F1Z5"></label>
+      </div>
+      <button class="btn primary" type="submit">Save details</button>
+    </form>
+
+    <section class="panel" aria-labelledby="outlets-title">
+      <div class="panel-head">
+        <h2 id="outlets-title">Outlets</h2>
+        <p class="panel-sub" id="outlets-sub"></p>
+      </div>
+      <div class="table-wrap"><table id="outlets"></table></div>
+      <details class="add" id="outlet-add">
+        <summary>Add an outlet</summary>
+        <form class="form-grid" id="outlet-form" novalidate>
+          <label class="field" for="o-name">Outlet name <input id="o-name" type="text" maxlength="60" placeholder="Anna Nagar"></label>
+          <label class="field" for="o-address">Address (optional) <input id="o-address" type="text" maxlength="160"></label>
+          <button class="btn primary wide" type="submit">Add outlet</button>
+        </form>
+      </details>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="team-title">
+    <div class="panel-head">
+      <h2 id="team-title">Staff logins</h2>
+      <p class="panel-sub">Managers run stock and reports at every outlet. Cashiers only bill, at one outlet.</p>
+    </div>
+    <div class="table-wrap"><table id="users"></table></div>
+    <details class="add" id="user-add">
+      <summary>Add a login</summary>
+      <form class="form-grid" id="user-form" novalidate>
+        <label class="field" for="u-name">Name <input id="u-name" type="text" maxlength="60"></label>
+        <label class="field" for="u-email">Email <input id="u-email" type="email" autocomplete="off"></label>
+        <label class="field" for="u-role">Role
+          <select id="u-role"><option value="cashier">Cashier</option><option value="manager">Manager</option></select>
+        </label>
+        <label class="field" for="u-outlet">Outlet (cashiers)
+          <select id="u-outlet"></select>
+        </label>
+        <label class="field wide" for="u-password">First password (8 characters or more; give it to them in person)
+          <input id="u-password" type="text" autocomplete="off" minlength="8">
+        </label>
+        <button class="btn primary wide" type="submit">Add login</button>
+      </form>
+    </details>
+  </section>
+</div>
+
+<script src="store.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+// Shown on the Enterprise plan card. Change to your own sales email or phone.
+const SALES_CONTACT = "sales@your-company.in";
+let acct = null;
+
+function say(msg, bad) {
+  $("status").textContent = msg;
+  $("status").classList.toggle("bad", !!bad);
+}
+
+const limit = (n) => (n == null ? "Unlimited" : n);
+const dateText = (iso) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+function renderPlan() {
+  const { subscription: sub, plan, access, usage, plans, payments } = acct;
+  let status;
+  if (!access.ok) status = `<span class="tag out">Stopped</span> ${esc(access.message.replace(" on the Account page", ""))}`;
+  else if (access.state === "trial") status = `<span class="tag low">Free trial</span> ${access.daysLeft} day${access.daysLeft === 1 ? "" : "s"} left, until ${dateText(access.endsAt)}`;
+  else if (access.cancelling) status = `<span class="tag low">Cancelled</span> Active until ${dateText(access.endsAt)}`;
+  else if (access.inGrace) status = `<span class="tag out">Payment due</span> The last payment didn't go through`;
+  else status = `<span class="tag ok">Active</span> Renews on ${dateText(access.endsAt)}`;
+  $("current").innerHTML = `
+    <div><div class="current-name">${esc(plan ? plan.name : "No plan")}</div><div class="current-meta">${status}</div></div>`;
+
+  const meter = (label, used, max) => {
+    const pct = max == null ? Math.min(100, used * 4) : Math.min(100, (used / Math.max(1, max)) * 100);
+    return `<div class="meter">
+      <span class="meter-label">${label} <b>${used} of ${limit(max)}</b></span>
+      <span class="meter-track"><span class="meter-fill${max != null && used >= max ? " full" : ""}" style="width:${pct}%"></span></span>
+    </div>`;
+  };
+  $("meters").innerHTML = meter("Outlets", usage.outlets, plan && plan.maxOutlets) + meter("Logins", usage.users, plan && plan.maxUsers) + meter("Items", usage.items, plan && plan.maxItems);
+  $("test-note").hidden = acct.billingMode !== "test";
+
+  const paidPlan = sub && sub.status !== "trialing" && access.ok && !access.cancelling ? sub.planId : null;
+  $("plans").innerHTML = plans.map((p) => {
+    const isCurrent = paidPlan === p.id;
+    let button;
+    if (!p.selfServe) button = `<p class="muted">Contact us: <b>${esc(SALES_CONTACT)}</b></p>`;
+    else if (isCurrent) button = `<button class="btn" type="button" disabled>Current plan</button>`;
+    else button = `<button class="btn primary" type="button" data-plan="${esc(p.id)}">${sub && sub.planId === p.id && !access.ok ? "Renew" : `Choose ${esc(p.name)}`}</button>`;
+    return `<div class="plan${(paidPlan || (sub && sub.planId)) === p.id ? " current-plan" : ""}">
+      <div class="plan-name">${esc(p.name)}</div>
+      <div class="plan-price">${p.selfServe ? `${money(p.price)} <small>a month</small>` : `<small>Custom pricing</small>`}</div>
+      <ul>
+        <li>${p.maxOutlets == null ? "Unlimited outlets" : `${p.maxOutlets} outlet${p.maxOutlets === 1 ? "" : "s"}`}</li>
+        <li>${p.maxUsers == null ? "Unlimited" : p.maxUsers} staff logins</li>
+        <li>${p.maxItems == null ? "Unlimited" : p.maxItems} menu items</li>
+        ${p.features.map((f) => `<li>${esc(f)}</li>`).join("")}
+      </ul>
+      ${button}
+    </div>`;
+  }).join("");
+
+  $("cancel-row").hidden = !(sub && sub.status !== "trialing" && access.ok && !access.cancelling);
+  $("payments").innerHTML = payments.length
+    ? `<thead><tr><th>Date</th><th>Plan</th><th>Status</th><th class="num">Amount</th></tr></thead>
+       <tbody>${payments.map((p) => `<tr><td>${dateText(p.created_at)}</td><td>${esc((plans.find((x) => x.id === p.plan_id) || {}).name || p.plan_id)}</td><td>${p.status === "test" ? "Test (no charge)" : esc(p.status === "paid" ? "Paid" : p.status)}</td><td class="num">${money(p.amount)}</td></tr>`).join("")}</tbody>`
+    : `<tbody><tr><td class="muted">No payments yet.</td></tr></tbody>`;
+}
+
+function renderBusiness() {
+  const b = acct.business;
+  $("b-name").value = b.name;
+  $("b-address").value = b.address;
+  $("b-phone").value = b.phone;
+  $("b-gstin").value = b.gstin;
+}
+
+function renderOutlets() {
+  const open = acct.outlets.filter((o) => o.active).length;
+  $("outlets-sub").textContent = `${open} open`;
+  $("outlets").innerHTML = `<thead><tr><th>Outlet</th><th>Address</th><th></th></tr></thead><tbody>${acct.outlets.map((o) => `
+    <tr>
+      <td><b>${esc(o.name)}</b>${o.active ? "" : ` <span class="tag out">Closed</span>`}</td>
+      <td class="muted">${esc(o.address || "–")}</td>
+      <td><div class="row-actions">${o.active
+        ? `<button class="small-btn danger" type="button" data-outlet="${esc(o.id)}" data-active="false"${open <= 1 ? " disabled title=\"You need at least one open outlet\"" : ""}>Close</button>`
+        : `<button class="small-btn" type="button" data-outlet="${esc(o.id)}" data-active="true">Reopen</button>`}</div></td>
+    </tr>`).join("")}</tbody>`;
+  $("u-outlet").innerHTML = acct.outlets.filter((o) => o.active).map((o) => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join("");
+}
+
+function renderUsers() {
+  const roleName = { owner: "Owner", manager: "Manager", cashier: "Cashier" };
+  $("users").innerHTML = `<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last login</th><th></th></tr></thead><tbody>${acct.users.map((u) => `
+    <tr>
+      <td><b>${esc(u.name)}</b>${u.self ? " (you)" : ""}${u.active ? "" : ` <span class="tag out">Off</span>`}</td>
+      <td class="muted">${esc(u.email)}</td>
+      <td>${roleName[u.role]}${u.role === "cashier" && u.outlet_name ? `, ${esc(u.outlet_name)}` : ""}</td>
+      <td class="muted">${u.last_login_at ? dateText(u.last_login_at) : "Never"}</td>
+      <td>${u.role === "owner" ? "" : `<div class="row-actions">${u.active
+        ? `<button class="small-btn danger" type="button" data-user="${esc(u.id)}" data-active="false">Turn off</button>`
+        : `<button class="small-btn" type="button" data-user="${esc(u.id)}" data-active="true">Turn on</button>`}</div>`}</td>
+    </tr>`).join("")}</tbody>`;
+}
+
+function renderAll() {
+  renderPlan();
+  renderBusiness();
+  renderOutlets();
+  renderUsers();
+}
+
+async function reload() {
+  try {
+    acct = await api("/api/account");
+    ME = await api("/api/me");
+    renderPlanBanner();
+    renderAll();
+  } catch (e) { say(e.message, true); }
+}
+
+// ---------- Plans ----------
+
+function loadRazorpay() {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Couldn't load Razorpay. Check your internet connection and try again."));
+    document.head.appendChild(s);
+  });
+}
+
+$("plans").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-plan]");
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    const r = await api("/api/billing/subscribe", { method: "POST", body: { planId: btn.dataset.plan } });
+    if (r.mode === "test") {
+      say(`${r.plan} is on for a month. Test mode: no payment was taken.`);
+      return reload();
+    }
+    await loadRazorpay();
+    const checkout = new window.Razorpay({
+      key: r.keyId,
+      subscription_id: r.subscriptionId,
+      name: "Icepops",
+      description: `${r.plan} plan, monthly`,
+      prefill: r.prefill,
+      theme: { color: "#C4184F" },
+      handler: async (resp) => {
+        try {
+          await api("/api/billing/verify", { method: "POST", body: resp });
+          say(`Payment received. ${r.plan} is active.`);
+        } catch (err) { say(err.message, true); }
+        reload();
+      },
+      modal: { ondismiss: () => { say("Payment cancelled. Your plan hasn't changed."); btn.disabled = false; } }
+    });
+    checkout.open();
+  } catch (err) {
+    say(err.message, true);
+    btn.disabled = false;
+  }
+});
+
+$("cancel").addEventListener("click", async () => {
+  const btn = $("cancel");
+  if (!btn.classList.contains("armed")) {
+    btn.classList.add("armed");
+    btn.textContent = "Confirm cancel";
+    $("cancel-help").textContent = "Press again to cancel. You keep access until the end of the paid period, then billing stops.";
+    return;
+  }
+  try {
+    await api("/api/billing/cancel", { method: "POST" });
+    say("Plan cancelled. It stays active until the end of the period you've paid for.");
+    reload();
+  } catch (err) { say(err.message, true); }
+});
+
+// ---------- Business, outlets, team ----------
+
+$("business").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("/api/business", { method: "PATCH", body: { name: $("b-name").value, address: $("b-address").value, phone: $("b-phone").value, gstin: $("b-gstin").value } });
+    say("Business details saved. New e-bills will show them.");
+    reload();
+  } catch (err) { say(err.message, true); }
+});
+
+$("outlet-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    acct = await api("/api/outlets", { method: "POST", body: { name: $("o-name").value, address: $("o-address").value } });
+    say(`${$("o-name").value.trim()} added. Stock starts at 0 there; set it on the Inventory page after switching to that outlet.`);
+    $("o-name").value = ""; $("o-address").value = "";
+    $("outlet-add").open = false;
+    renderAll();
+  } catch (err) { say(err.message, true); }
+});
+
+$("outlets").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-outlet]");
+  if (!btn) return;
+  try {
+    acct = await api(`/api/outlets/${btn.dataset.outlet}`, { method: "PATCH", body: { active: btn.dataset.active === "true" } });
+    say(btn.dataset.active === "true" ? "Outlet reopened." : "Outlet closed. Its past sales stay in your reports.");
+    renderAll();
+  } catch (err) { say(err.message, true); }
+});
+
+$("u-role").addEventListener("change", () => { $("u-outlet").disabled = $("u-role").value !== "cashier"; });
+
+$("user-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = { name: $("u-name").value, email: $("u-email").value, role: $("u-role").value, outletId: $("u-outlet").value, password: $("u-password").value };
+  try {
+    acct = await api("/api/users", { method: "POST", body });
+    say(`Login added for ${body.name.trim()}. They log in with ${body.email.trim()} and the password you set.`);
+    ["u-name", "u-email", "u-password"].forEach((id) => { $(id).value = ""; });
+    $("user-add").open = false;
+    renderAll();
+  } catch (err) { say(err.message, true); }
+});
+
+$("users").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-user]");
+  if (!btn) return;
+  try {
+    acct = await api(`/api/users/${btn.dataset.user}`, { method: "PATCH", body: { active: btn.dataset.active === "true" } });
+    say(btn.dataset.active === "true" ? "Login turned on." : "Login turned off and logged out everywhere.");
+    renderAll();
+  } catch (err) { say(err.message, true); }
+});
+
+startPage("account").then((me) => {
+  if (!me) return;
+  document.querySelector(".eyebrow").textContent = me.business.name;
+  reload();
+});
+</script>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Icepops Login</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+
+<div class="page auth-page">
+  <header class="masthead">
+    <div class="masthead-text">
+      <p class="eyebrow">Counter billing for ice-pop shops and cafés</p>
+      <h1>Icepops</h1>
+    </div>
+  </header>
+
+  <form class="auth-card" id="login" novalidate>
+    <h2 class="panel-title">Log in</h2>
+    <label class="field" for="email">Email
+      <input id="email" type="email" autocomplete="username" required>
+    </label>
+    <label class="field" for="password">Password
+      <input id="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button class="add-btn" id="submit" type="submit">Log in</button>
+    <p class="form-note" id="note" role="status"></p>
+  </form>
+
+  <p class="auth-alt">New here? <a href="signup.html">Start a free trial</a></p>
+</div>
+
+<script src="store.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const next = new URLSearchParams(location.search).get("next") || "";
+// Only return to a page on this site.
+const target = /^[a-z-]+\.html(\?[^#]*)?$/.test(next) && !next.startsWith("login") ? next : "index.html";
+
+$("login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const note = $("note");
+  const email = $("email").value.trim();
+  const password = $("password").value;
+  if (!email || !password) { note.textContent = "Enter your email and password."; note.classList.add("bad"); return; }
+  $("submit").disabled = true;
+  $("submit").textContent = "Logging in…";
+  try {
+    await api("/api/auth/login", { method: "POST", body: { email, password }, noRedirect: true });
+    location.href = target;
+  } catch (err) {
+    note.textContent = err.message;
+    note.classList.add("bad");
+    $("submit").disabled = false;
+    $("submit").textContent = "Log in";
+    $("password").select();
+  }
+});
+
+// Already logged in? Go straight in.
+api("/api/me", { noRedirect: true }).then(() => location.replace(target)).catch(() => $("email").focus());
+</script>
+</html>

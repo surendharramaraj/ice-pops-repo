@@ -1,0 +1,39 @@
+# systemd service for Icepops. setup-server.sh installs it as
+# /etc/systemd/system/icepops.service.
+#
+#   sudo systemctl status icepops      is it running?
+#   sudo journalctl -u icepops -f      follow the logs
+#   sudo systemctl restart icepops     restart after changing settings
+
+[Unit]
+Description=Icepops counter billing
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=icepops
+Group=icepops
+WorkingDirectory=/opt/icepops
+EnvironmentFile=/etc/icepops/icepops.env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+
+# The app only reads its own files and talks to PostgreSQL over the network,
+# so lock everything else down.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

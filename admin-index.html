@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Icepops Inventory</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* Summary strip */
+.summary {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface); border: 2px solid var(--line); border-radius: 18px;
+}
+.stat { display: grid; gap: 4px; padding: 16px 18px; min-width: 0; }
+.stat + .stat { border-left: 2px solid var(--line); }
+.stat-label { font: 500 .75rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.stat-value { font: 400 2rem/1.1 var(--display); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat-value.alert { color: var(--accent); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+
+/* Menu ledger */
+.ledger { display: grid; gap: 10px; min-width: 0; }
+.ledger-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.ledger-head h2 { font: 400 1.5rem/1.1 var(--display); }
+.status-line { font-size: .875rem; color: var(--muted); min-height: 1.3em; }
+.status-line.bad { color: var(--accent); font-weight: 600; }
+.sheet-note { font-size: .875rem; color: var(--muted); }
+.sheet-note a { color: var(--accent); font-weight: 700; }
+
+.row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 100px 170px 110px 190px;
+  grid-template-areas: "art name price stock status act";
+  gap: 12px; align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.row.head { padding-block: 0 8px; border-bottom-width: 2px; }
+.row.head span { font: 500 .75rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.rows { list-style: none; margin: 0; padding: 0; }
+.cat-head { padding: 18px 0 6px; font: 400 1.125rem/1.2 var(--display); color: var(--accent); border-bottom: 1px solid var(--line); }
+.cat-head:first-child { padding-top: 4px; }
+.c-art { grid-area: art; }
+.c-name { grid-area: name; }
+.c-price { grid-area: price; }
+.c-stock { grid-area: stock; }
+.c-status { grid-area: status; }
+.c-act { grid-area: act; justify-self: end; display: flex; gap: 6px; }
+.c-art svg { height: 44px; width: auto; display: block; }
+.cell { display: grid; gap: 3px; min-width: 0; }
+.cell-label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+.cell input {
+  width: 100%; height: 40px; padding: 0 10px;
+  border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink);
+}
+.c-name input { font-weight: 600; }
+.recipe-meta { font-size: .75rem; color: var(--muted); }
+.recipe-meta.none { color: var(--low-ink); }
+.c-price input, .c-stock input { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.stock-ctl { display: flex; gap: 6px; }
+.stock-ctl input { min-width: 0; }
+.made { font-size: .875rem; color: var(--muted); }
+.mini {
+  flex: none; height: 40px; padding: 0 10px;
+  border: 2px solid var(--line); border-radius: 10px;
+  background: transparent; font: 500 .875rem/1 var(--mono); cursor: pointer;
+}
+.mini:hover { border-color: var(--ink); }
+.remove, .edit {
+  height: 40px; padding: 0 12px;
+  border: 2px solid var(--line); border-radius: 10px;
+  background: transparent; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.edit:hover { border-color: var(--ink); }
+.remove:hover { border-color: var(--accent); color: var(--accent); }
+.remove.armed { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.empty-list { padding: 32px 16px; text-align: center; color: var(--muted); border: 2px dashed var(--line); border-radius: 18px; }
+.busy { opacity: .6; pointer-events: none; }
+
+/* New item panel */
+.new {
+  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px);
+  display: grid; gap: 12px;
+  padding: 18px;
+  background: var(--surface); border: 2px solid var(--line); border-radius: 18px;
+}
+.field select {
+  width: 100%; height: 40px; padding: 0 10px;
+  border: 1.5px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 400;
+}
+.field input:disabled { opacity: .45; }
+
+/* Recipe and details editor */
+dialog.editor {
+  width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 32px);
+  padding: 0; border: 2px solid var(--line); border-radius: 18px;
+  background: var(--surface); color: var(--ink);
+}
+dialog.editor::backdrop { background: rgba(8, 28, 33, .55); }
+.editor form { display: grid; gap: 14px; padding: 22px; }
+.editor-head { display: flex; align-items: center; gap: 14px; }
+.editor-head svg { height: 64px; width: auto; flex: none; }
+.editor-head h2 { font: 400 1.5rem/1.1 var(--display); overflow-wrap: anywhere; }
+.editor-head p { font-size: .875rem; color: var(--muted); }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.editor fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+.editor legend { padding: 0; margin-bottom: 4px; font-weight: 700; }
+.editor .hint { font-size: .8125rem; color: var(--muted); font-weight: 400; }
+.ing-row { display: grid; grid-template-columns: 90px 110px minmax(0, 1fr) 36px; gap: 6px; align-items: center; }
+.ing-row input {
+  width: 100%; height: 38px; padding: 0 8px;
+  border: 1.5px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); font-size: .9375rem;
+}
+.ing-row .x { width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 1.125rem; cursor: pointer; }
+.ing-row .x:hover { color: var(--accent); }
+.ing-head { font: 500 .6875rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.add-line { justify-self: start; height: 36px; padding: 0 12px; border: 2px dashed var(--line); border-radius: 9px; background: transparent; font-weight: 600; cursor: pointer; }
+.add-line:hover { border-color: var(--ink); }
+.editor textarea {
+  width: 100%; min-height: 130px; padding: 10px; resize: vertical;
+  border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink);
+  font: 400 .9375rem/1.5 var(--body);
+}
+.editor-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.btn { height: 44px; padding: 0 18px; border-radius: 12px; font-weight: 700; cursor: pointer; border: 2px solid var(--line); background: transparent; color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .new { position: static; max-width: 520px; }
+}
+@media (max-width: 720px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat:nth-child(3) { border-left: 0; }
+  .stat:nth-child(n + 3) { border-top: 2px solid var(--line); }
+  .stat-value { font-size: 1.625rem; }
+  .row.head { display: none; }
+  .row {
+    grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "art name name"
+      "art price stock"
+      "art status act";
+    gap: 10px;
+    padding-block: 14px;
+  }
+  .c-art { align-self: start; }
+  .cell-label {
+    position: static; width: auto; height: auto; overflow: visible; clip: auto;
+    font-size: .75rem; font-weight: 600; color: var(--muted);
+  }
+  .grid3 { grid-template-columns: minmax(0, 1fr); }
+  .ing-row { grid-template-columns: 70px 80px minmax(0, 1fr) 32px; }
+}
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <div class="masthead-text">
+      <p class="eyebrow">Inventory</p>
+      <h1>Inventory</h1>
+      <p class="lede">Your menu, prices, stock at this outlet, and how each item is made.</p>
+    </div>
+    <nav class="nav" id="nav" aria-label="Pages"></nav>
+  </header>
+
+  <p class="banner" id="banner" role="alert" hidden></p>
+  <p class="plan-banner" id="plan-banner" hidden></p>
+
+  <section class="summary" aria-label="Stock summary">
+    <div class="stat"><span class="stat-label">Menu items</span><span class="stat-value" id="s-flavours">0</span></div>
+    <div class="stat"><span class="stat-label">Items in stock</span><span class="stat-value" id="s-items">0</span></div>
+    <div class="stat"><span class="stat-label">Stock value</span><span class="stat-value" id="s-value">₹0</span></div>
+    <div class="stat"><span class="stat-label">Low or sold out</span><span class="stat-value" id="s-alert">0</span></div>
+  </section>
+
+  <main class="layout">
+    <section class="ledger" aria-labelledby="ledger-title">
+      <div class="ledger-head">
+        <h2 id="ledger-title">Menu</h2>
+        <p class="status-line" id="status" role="status"></p>
+      </div>
+      <p class="sheet-note">Changes save when you leave a box or press Enter. Use <b>Recipe</b> to set the category, picture and making instructions. Every restock and correction is kept in the stock log, which is in the <a href="/api/download">Excel download</a>.</p>
+      <div class="row head" aria-hidden="true">
+        <span></span><span>Name</span><span>Price</span><span>In stock</span><span>Status</span><span></span>
+      </div>
+      <ul class="rows" id="rows"><li class="empty-list">Loading the menu…</li></ul>
+    </section>
+
+    <form class="new" id="new-flavour" novalidate>
+      <h2 class="panel-title">New item</h2>
+      <label class="field" for="flavour-name">Name
+        <input id="flavour-name" type="text" maxlength="40" autocomplete="off" placeholder="Cold Coffee">
+      </label>
+      <div class="pair">
+        <label class="field" for="new-category">Category
+          <input id="new-category" type="text" maxlength="30" list="categories" autocomplete="off" placeholder="Beverages">
+        </label>
+        <label class="field" for="new-kind">Picture
+          <select id="new-kind"></select>
+        </label>
+      </div>
+      <div class="pair">
+        <label class="field" for="flavour-price">Price (₹)
+          <input id="flavour-price" type="number" min="1" step="1" inputmode="numeric" placeholder="120">
+        </label>
+        <label class="field" for="flavour-stock">Number in stock
+          <input id="flavour-stock" type="number" min="0" step="1" inputmode="numeric" placeholder="20">
+        </label>
+      </div>
+      <label class="check" for="new-made"><input id="new-made" type="checkbox"> Made to order (no stock count, like fries or coffee)</label>
+      <label class="field" for="flavour-colour">Colour
+        <input id="flavour-colour" type="color" value="#F2C230">
+      </label>
+      <button class="add-btn" type="submit">Add to menu</button>
+      <p class="form-note" id="form-note" role="status"></p>
+    </form>
+  </main>
+</div>
+
+<datalist id="categories"></datalist>
+<datalist id="units">
+  <option value="g"></option><option value="kg"></option><option value="ml"></option><option value="l"></option>
+  <option value="tsp"></option><option value="tbsp"></option><option value="spoon"></option><option value="cup"></option>
+  <option value="scoop"></option><option value="piece"></option><option value="slice"></option><option value="pinch"></option>
+  <option value="shot"></option><option value="cubes"></option><option value="sachet"></option>
+</datalist>
+
+<dialog class="editor" id="editor" aria-labelledby="ed-title">
+  <form id="ed-form" method="dialog" novalidate>
+    <div class="editor-head">
+      <span id="ed-art"></span>
+      <div><h2 id="ed-title">Item</h2><p>Details and making instructions for one portion. The counter multiplies amounts by the quantity ordered.</p></div>
+    </div>
+    <div class="grid3">
+      <label class="field" for="ed-category">Category <input id="ed-category" type="text" maxlength="30" list="categories" autocomplete="off"></label>
+      <label class="field" for="ed-kind">Picture <select id="ed-kind"></select></label>
+      <label class="field" for="ed-colour">Colour <input id="ed-colour" type="color"></label>
+    </div>
+    <div class="pair">
+      <label class="field" for="ed-prep">Prep time (minutes) <input id="ed-prep" type="number" min="0" max="240" step="1" inputmode="numeric" placeholder="5"></label>
+      <label class="check" for="ed-track" style="align-self:end"><input id="ed-track" type="checkbox"> Count stock for this item</label>
+    </div>
+    <fieldset>
+      <legend>Ingredients <span class="hint">for one portion, for example 1 tbsp coffee powder</span></legend>
+      <div class="ing-row ing-head" aria-hidden="true"><span>Amount</span><span>Unit</span><span>Ingredient</span><span></span></div>
+      <div id="ed-ings"></div>
+      <button class="add-line" id="ed-add-ing" type="button">+ Add ingredient</button>
+    </fieldset>
+    <label class="field" for="ed-steps">Steps <span class="hint">One step per line, in order</span>
+      <textarea id="ed-steps" placeholder="Mix the coffee powder and sugar with 2 tbsp warm water.&#10;Blend with the milk and ice for 30 seconds.&#10;Pour into a cup and serve."></textarea>
+    </label>
+    <p class="form-note" id="ed-note" role="status"></p>
+    <div class="editor-actions">
+      <button class="btn" id="ed-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="ed-save" type="button">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="store.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const RESTOCK_STEP = 10;
+
+let menu = [];
+let editingId = null;
+
+function find(id) { return menu.find((f) => f.id === id); }
+
+function say(msg, bad) {
+  $("status").textContent = msg;
+  $("status").classList.toggle("bad", !!bad);
+}
+
+const kindOptions = Object.entries(KIND_LABELS).map(([k, label]) => `<option value="${k}">${label}</option>`).join("");
+$("new-kind").innerHTML = kindOptions;
+$("ed-kind").innerHTML = kindOptions;
+
+function recipeSummary(f) {
+  const r = f.recipe || { ingredients: [], steps: [] };
+  if (!r.ingredients.length && !r.steps.length) return `<span class="recipe-meta none">No recipe yet</span>`;
+  const parts = [`${r.ingredients.length} ingredient${r.ingredients.length === 1 ? "" : "s"}`, `${r.steps.length} step${r.steps.length === 1 ? "" : "s"}`];
+  if (f.prepMinutes != null) parts.push(`${f.prepMinutes} min`);
+  return `<span class="recipe-meta">${parts.join(" · ")}</span>`;
+}
+
+function itemStatus(f) {
+  return f.trackStock ? stockState(f.stock) : { cls: "ok", text: "Made to order" };
+}
+
+function rowHtml(f) {
+  const id = esc(f.id);
+  const state = itemStatus(f);
+  const stockCell = f.trackStock
+    ? `<label class="cell-label" for="stock-${id}">In stock</label>
+        <div class="stock-ctl">
+          <input id="stock-${id}" type="number" min="0" step="1" inputmode="numeric" data-field="stock" data-id="${id}" value="${f.stock}">
+          <button class="mini" type="button" data-act="restock" data-id="${id}" data-label="Add ${RESTOCK_STEP}" aria-label="Add ${RESTOCK_STEP} ${esc(f.name)}">+${RESTOCK_STEP}</button>
+        </div>`
+    : `<span class="made">Not counted</span>`;
+  return `
+    <li class="row" data-row="${id}">
+      <span class="c-art">${itemArt(f, "a")}</span>
+      <div class="cell c-name">
+        <label class="cell-label" for="name-${id}">Name</label>
+        <input id="name-${id}" type="text" maxlength="40" autocomplete="off" data-field="name" data-id="${id}" value="${esc(f.name)}">
+        <span data-recipe-meta>${recipeSummary(f)}</span>
+      </div>
+      <label class="cell c-price" for="price-${id}"><span class="cell-label">Price (${CURRENCY})</span>
+        <input id="price-${id}" type="number" min="1" step="1" inputmode="numeric" data-field="price" data-id="${id}" value="${f.price}">
+      </label>
+      <div class="cell c-stock">${stockCell}</div>
+      <span class="c-status"><span class="tag ${state.cls}" data-status>${state.text}</span></span>
+      <span class="c-act">
+        <button class="edit" type="button" data-act="edit" data-id="${id}" data-label="Recipe for" aria-label="Recipe for ${esc(f.name)}">Recipe</button>
+        <button class="remove" type="button" data-act="remove" data-id="${id}" data-label="Remove" aria-label="Remove ${esc(f.name)}">Remove</button>
+      </span>
+    </li>`;
+}
+
+// Items grouped by category, categories in the order they were first added.
+function grouped(list) {
+  const groups = new Map();
+  for (const f of list) {
+    if (!groups.has(f.category)) groups.set(f.category, []);
+    groups.get(f.category).push(f);
+  }
+  return groups;
+}
+
+function renderSummary() {
+  const counted = menu.filter((f) => f.trackStock);
+  const items = counted.reduce((sum, f) => sum + f.stock, 0);
+  const value = counted.reduce((sum, f) => sum + f.stock * f.price, 0);
+  const alert = counted.filter((f) => f.stock <= LOW_STOCK).length;
+  $("s-flavours").textContent = menu.length;
+  $("s-items").textContent = items.toLocaleString("en-IN");
+  $("s-value").textContent = money(value);
+  $("s-alert").textContent = alert;
+  $("s-alert").classList.toggle("alert", alert > 0);
+  $("categories").innerHTML = [...new Set(["Icepops", "Snacks", "Beverages", "Desserts", ...menu.map((f) => f.category)])]
+    .map((c) => `<option value="${esc(c)}"></option>`).join("");
+}
+
+function renderList() {
+  const focusId = document.activeElement && document.activeElement.id;
+  const groups = grouped(menu);
+  $("rows").innerHTML = menu.length
+    ? [...groups].map(([cat, items]) => `<li class="cat-head">${esc(cat)}</li>${items.map(rowHtml).join("")}`).join("")
+    : `<li class="empty-list">Your menu is empty. Add your first item with the New item form.</li>`;
+  renderSummary();
+  const again = focusId && document.getElementById(focusId);
+  if (again) again.focus();
+}
+
+function refreshRow(f) {
+  const row = document.querySelector(`[data-row="${CSS.escape(f.id)}"]`);
+  if (!row) return;
+  const state = itemStatus(f);
+  const tag = row.querySelector("[data-status]");
+  tag.className = "tag " + state.cls;
+  tag.textContent = state.text;
+  row.querySelector('[data-field="name"]').value = f.name;
+  row.querySelector('[data-field="price"]').value = f.price;
+  const stock = row.querySelector('[data-field="stock"]');
+  if (stock) stock.value = f.stock;
+  row.querySelector("[data-recipe-meta]").innerHTML = recipeSummary(f);
+  row.querySelectorAll("[data-label]").forEach((el) => el.setAttribute("aria-label", `${el.dataset.label} ${f.name}`));
+}
+
+// Take the server's copy of the menu; re-render fully when the list, a category or the stock setting changed.
+function applyMenu(list) {
+  const shape = (l) => l.map((f) => `${f.id}|${f.category}|${f.trackStock}|${f.kind}|${f.a}`).join(",");
+  const same = shape(list) === shape(menu);
+  menu = list;
+  if (same) { menu.forEach(refreshRow); renderSummary(); } else { renderList(); }
+}
+
+async function load() {
+  try {
+    const data = await api("/api/menu");
+    showBanner("");
+    applyMenu(data.flavours);
+  } catch (e) {
+    showBanner(e.message);
+    if (!menu.length) $("rows").innerHTML = `<li class="empty-list">The menu appears here once the server is running.</li>`;
+  }
+}
+
+async function save(row, request, done) {
+  if (row) row.classList.add("busy");
+  try {
+    const res = await api(request.path, { method: request.method, body: request.body });
+    applyMenu(res.flavours);
+    done(res);
+  } catch (e) {
+    say(e.message, true);
+    load();
+  } finally {
+    if (row) row.classList.remove("busy");
+  }
+}
+
+// Inline edits save when the field loses focus or Enter is pressed.
+$("rows").addEventListener("change", (e) => {
+  const { field, id } = e.target.dataset;
+  const f = id && find(id);
+  if (!f || !field) return;
+  const input = e.target;
+  const row = input.closest(".row");
+  let value = input.value;
+
+  if (field === "name") {
+    value = value.trim();
+    if (!value) { input.value = f.name; return say("Enter a name for this item.", true); }
+  } else {
+    const n = Number(value);
+    const min = field === "price" ? 1 : 0;
+    if (value === "" || !Number.isInteger(n) || n < min) {
+      input.value = f[field];
+      return say(field === "price" ? "Enter a price in whole numbers, 1 or more." : "Enter the number in stock in whole numbers, 0 or more.", true);
+    }
+    value = n;
+  }
+  const before = f.name;
+  save(row, { path: `/api/items/${encodeURIComponent(id)}`, method: "PATCH", body: { [field]: value } }, (res) => {
+    const g = res.flavour;
+    if (field === "name") say(`${before} renamed to ${g.name}.`);
+    if (field === "price") say(`${g.name} price set to ${money(g.price)}.`);
+    if (field === "stock") say(`${g.name} stock set to ${g.stock}.`);
+  });
+});
+
+$("rows").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-act]");
+  if (!btn) return;
+  const f = find(btn.dataset.id);
+  if (!f) return;
+  const row = btn.closest(".row");
+
+  if (btn.dataset.act === "edit") {
+    openEditor(f);
+  } else if (btn.dataset.act === "restock") {
+    save(row, { path: `/api/items/${encodeURIComponent(f.id)}/restock`, method: "POST", body: { qty: RESTOCK_STEP } }, (res) => {
+      say(`Added ${RESTOCK_STEP} ${res.flavour.name}. Now ${res.flavour.stock} in stock.`);
+    });
+  } else if (btn.dataset.act === "remove") {
+    // First press asks for confirmation; the second press removes.
+    if (!btn.classList.contains("armed")) {
+      btn.classList.add("armed");
+      btn.textContent = "Confirm";
+      setTimeout(() => { btn.classList.remove("armed"); btn.textContent = "Remove"; }, 4000);
+      return;
+    }
+    save(row, { path: `/api/items/${encodeURIComponent(f.id)}`, method: "DELETE" }, () => {
+      say(`${f.name} removed from the menu. Its past sales stay in your reports.`);
+      if (e.detail === 0) $("flavour-name").focus();
+    });
+  }
+});
+
+$("rows").addEventListener("focusout", (e) => {
+  const btn = e.target.closest && e.target.closest(".remove.armed");
+  if (btn) { btn.classList.remove("armed"); btn.textContent = "Remove"; }
+});
+
+// ---------- New item ----------
+
+$("new-made").addEventListener("change", () => {
+  $("flavour-stock").disabled = $("new-made").checked;
+  if ($("new-made").checked) $("flavour-stock").value = "";
+});
+$("new-kind").addEventListener("change", () => {
+  const made = { cup: true, fries: true };
+  $("new-made").checked = !!made[$("new-kind").value];
+  $("new-made").dispatchEvent(new Event("change"));
+});
+
+$("new-flavour").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const note = $("form-note");
+  const name = $("flavour-name").value.trim();
+  const priceText = $("flavour-price").value;
+  const stockText = $("flavour-stock").value;
+  const made = $("new-made").checked;
+  const price = Number(priceText);
+  const stock = Number(stockText);
+  const fail = (msg, field) => { note.textContent = msg; note.classList.add("bad"); field.focus(); };
+
+  if (!name) return fail("Enter the item's name.", $("flavour-name"));
+  if (menu.some((f) => f.name.toLowerCase() === name.toLowerCase())) {
+    return fail(`${name} is already on the menu.`, $("flavour-name"));
+  }
+  if (priceText === "" || !Number.isInteger(price) || price < 1) {
+    return fail("Enter a price in whole numbers, 1 or more.", $("flavour-price"));
+  }
+  if (!made && (stockText === "" || !Number.isInteger(stock) || stock < 0)) {
+    return fail("Enter the number in stock, or tick Made to order.", $("flavour-stock"));
+  }
+
+  const form = $("new-flavour");
+  form.classList.add("busy");
+  api("/api/items", {
+    method: "POST",
+    body: {
+      name, price, stock: made ? 0 : stock, trackStock: !made, colour: $("flavour-colour").value,
+      category: $("new-category").value.trim() || "Other", kind: $("new-kind").value
+    }
+  })
+    .then((res) => {
+      applyMenu(res.flavours);
+      note.classList.remove("bad");
+      note.textContent = `${res.flavour.name} added. Now add how it's made.`;
+      ["flavour-name", "flavour-price", "flavour-stock"].forEach((id) => { $(id).value = ""; });
+      openEditor(res.flavour);
+    })
+    .catch((err) => fail(err.message, $("flavour-name")))
+    .finally(() => form.classList.remove("busy"));
+});
+
+// ---------- Recipe and details editor ----------
+
+function ingRow(i = { qty: null, unit: "", name: "" }) {
+  const div = document.createElement("div");
+  div.className = "ing-row";
+  div.innerHTML = `
+    <input type="number" min="0" step="any" inputmode="decimal" aria-label="Amount" value="${i.qty == null ? "" : esc(i.qty)}" data-ing="qty">
+    <input type="text" maxlength="20" list="units" aria-label="Unit" value="${esc(i.unit || "")}" data-ing="unit">
+    <input type="text" maxlength="60" aria-label="Ingredient" value="${esc(i.name || "")}" data-ing="name">
+    <button class="x" type="button" aria-label="Remove this ingredient">×</button>`;
+  return div;
+}
+
+function editorArt() {
+  $("ed-art").innerHTML = itemArt({ id: "preview", kind: $("ed-kind").value, a: $("ed-colour").value, b: editingId && find(editingId) && find(editingId).a === $("ed-colour").value ? find(editingId).b : $("ed-colour").value }, "e");
+}
+
+function openEditor(f) {
+  editingId = f.id;
+  $("ed-title").textContent = f.name;
+  $("ed-category").value = f.category || "";
+  $("ed-kind").value = f.kind || "plate";
+  $("ed-colour").value = /^#[0-9a-f]{6}$/i.test(f.a) ? f.a : "#F2C230";
+  $("ed-prep").value = f.prepMinutes == null ? "" : f.prepMinutes;
+  $("ed-track").checked = f.trackStock !== false;
+  const r = f.recipe || { ingredients: [], steps: [] };
+  $("ed-ings").replaceChildren(...(r.ingredients.length ? r.ingredients : [{}, {}]).map(ingRow));
+  $("ed-steps").value = r.steps.join("\n");
+  $("ed-note").textContent = "";
+  editorArt();
+  $("editor").showModal();
+  $("ed-category").focus();
+}
+
+$("ed-kind").addEventListener("change", editorArt);
+$("ed-colour").addEventListener("input", editorArt);
+$("ed-add-ing").addEventListener("click", () => {
+  const row = ingRow();
+  $("ed-ings").appendChild(row);
+  row.querySelector("input").focus();
+});
+$("ed-ings").addEventListener("click", (e) => {
+  const x = e.target.closest(".x");
+  if (x) x.closest(".ing-row").remove();
+});
+$("ed-cancel").addEventListener("click", () => $("editor").close());
+
+$("ed-save").addEventListener("click", async () => {
+  const f = find(editingId);
+  if (!f) return $("editor").close();
+  const note = $("ed-note");
+  const ingredients = [...$("ed-ings").querySelectorAll(".ing-row")].map((row) => ({
+    qty: row.querySelector('[data-ing="qty"]').value.trim(),
+    unit: row.querySelector('[data-ing="unit"]').value.trim(),
+    name: row.querySelector('[data-ing="name"]').value.trim()
+  })).filter((i) => i.name || i.qty || i.unit);
+  const missingName = ingredients.find((i) => !i.name);
+  if (missingName) { note.textContent = "Every ingredient needs a name. Remove empty lines with ×."; note.classList.add("bad"); return; }
+  const prep = $("ed-prep").value.trim();
+  if (prep && (!Number.isInteger(Number(prep)) || Number(prep) < 0 || Number(prep) > 240)) {
+    note.textContent = "Enter the prep time in whole minutes, up to 240."; note.classList.add("bad"); return $("ed-prep").focus();
+  }
+  const body = {
+    category: $("ed-category").value.trim() || "Other",
+    kind: $("ed-kind").value,
+    trackStock: $("ed-track").checked,
+    prepMinutes: prep === "" ? null : Number(prep),
+    recipe: {
+      ingredients: ingredients.map((i) => ({ qty: i.qty === "" ? null : Number(i.qty), unit: i.unit, name: i.name })),
+      steps: $("ed-steps").value.split("\n").map((s) => s.trim()).filter(Boolean)
+    }
+  };
+  if ($("ed-colour").value.toUpperCase() !== String(f.a).toUpperCase()) body.colour = $("ed-colour").value;
+
+  $("ed-save").disabled = true;
+  try {
+    const res = await api(`/api/items/${encodeURIComponent(f.id)}`, { method: "PATCH", body });
+    applyMenu(res.flavours);
+    $("editor").close();
+    say(`${res.flavour.name} saved.`);
+  } catch (err) {
+    note.textContent = err.message;
+    note.classList.add("bad");
+  } finally {
+    $("ed-save").disabled = false;
+  }
+});
+
+// Pick up sales from the counter, unless someone is typing or editing.
+setInterval(() => {
+  if (document.visibilityState !== "visible" || $("editor").open) return;
+  if (document.activeElement && document.activeElement.closest && document.activeElement.closest("#rows input")) return;
+  load();
+}, 20000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !$("editor").open) load(); });
+
+startPage("inventory").then((me) => { if (me) load(); });
+</script>
+</html>
