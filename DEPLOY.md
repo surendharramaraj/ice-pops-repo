@@ -15,10 +15,25 @@ nginx handles HTTPS and forwards to the app. The app runs as a systemd service u
 
 ## First deployment
 
-From the `icepops` folder on your Mac:
+From the `icepops` folder on your Mac, using **the SSL certificate nginx on your server already has**:
 
 ```
-deploy/deploy.sh ubuntu@YOUR_SERVER_IP --setup icepops.example.com you@example.com
+deploy/deploy.sh ubuntu@YOUR_SERVER_IP --setup icepops.seyinfotechnology.com --use-server-cert
+```
+
+Your domain is behind Cloudflare, so read the [Cloudflare section](#cloudflare-icepopsseyinfotechnologycom) first.
+
+Or uploading **certificate files from your Mac**:
+
+```
+deploy/deploy.sh ubuntu@YOUR_SERVER_IP --setup icepops.example.com \
+  --cert ~/ssl/certificate.crt --key ~/ssl/private.key --chain ~/ssl/ca-bundle.crt
+```
+
+Or with a **free Let's Encrypt certificate** instead:
+
+```
+deploy/deploy.sh ubuntu@YOUR_SERVER_IP --setup icepops.example.com --email you@example.com
 ```
 
 This uploads the app, then on the server:
@@ -27,7 +42,7 @@ This uploads the app, then on the server:
 2. Creates the `icepops` system user, `/opt/icepops` for the app and `/etc/icepops/icepops.env` for settings.
 3. Creates the `icepops` PostgreSQL login with a random password, and the `icepops` database ([deploy/postgres-setup.sql](deploy/postgres-setup.sql)). The password is written into the settings file.
 4. Installs the systemd service ([deploy/icepops.service](deploy/icepops.service)) and the nginx site ([deploy/nginx-icepops.conf](deploy/nginx-icepops.conf)).
-5. Gets a Let's Encrypt certificate and turns on the http-to-https redirect. Certificates renew automatically.
+5. Turns on HTTPS with the http-to-https redirect: installs your certificate, or gets a Let's Encrypt one (which renews automatically).
 6. Installs packages, starts the app, and waits until `/healthz` confirms the app and database are up.
 
 The app creates its tables the first time it starts. Then open `https://icepops.example.com/signup.html` and create your business.
@@ -39,6 +54,88 @@ deploy/deploy.sh ubuntu@YOUR_SERVER_IP
 ```
 
 This uploads the new code, installs packages and restarts. Database changes in `sql/` are applied automatically on start. Your local `data` folder is never uploaded.
+
+## Cloudflare (icepops.seyinfotechnology.com)
+
+`icepops.seyinfotechnology.com` is proxied through Cloudflare (the orange cloud), so visitors connect to Cloudflare and Cloudflare connects to your server.
+
+**In the Cloudflare dashboard for seyinfotechnology.com:**
+
+1. **DNS:** the `icepops` A record must point to your Ubuntu server's public IP, with the proxy on (orange cloud).
+2. **SSL/TLS → Overview:** set the encryption mode to **Full (strict)**.
+   - Don't use **Flexible**. Cloudflare would then talk to your server over plain http, nginx redirects http to https, and the site loops forever.
+3. **Caching:** leave it on the defaults, and don't add a "Cache Everything" rule for this hostname. The app marks every response as not cacheable, so customers always see current stock and bills.
+4. **Speed → Optimization:** if pages ever load but buttons do nothing, turn **Rocket Loader** off for this hostname, because it changes how scripts load.
+5. **Security:** the Razorpay webhook (`https://icepops.seyinfotechnology.com/api/billing/webhook`) must reach the server. If Bot Fight Mode or a WAF rule blocks it, add a skip rule for that path.
+
+**The certificate on your server** has to be one Cloudflare accepts in Full (strict) mode. Pick one:
+
+- **Your existing nginx certificate,** if it covers `icepops.seyinfotechnology.com`, which a wildcard `*.seyinfotechnology.com` does:
+  ```
+  deploy/deploy.sh ubuntu@YOUR_SERVER_IP --setup icepops.seyinfotechnology.com --use-server-cert
+  ```
+- **A free Cloudflare Origin Certificate** (valid up to 15 years, trusted by Cloudflare only, which is all that's needed behind the proxy). Create it under SSL/TLS → Origin Server → Create Certificate, for `*.seyinfotechnology.com` and `seyinfotechnology.com`, in PEM format. Save the certificate as `origin.pem` and the private key as `origin.key`, then:
+  ```
+  deploy/deploy.sh ubuntu@YOUR_SERVER_IP --setup icepops.seyinfotechnology.com --cert origin.pem --key origin.key
+  ```
+  The "no intermediate certificates" note is expected for origin certificates; ignore it.
+- **Let's Encrypt** (`--email`) can fail behind Cloudflare when "Always Use HTTPS" is on, so prefer one of the two above.
+
+**Visitor IPs:** behind Cloudflare, every request reaches nginx from a Cloudflare address. The setup installs [deploy/cloudflare-realip.sh](deploy/cloudflare-realip.sh), which lists Cloudflare's IP ranges so nginx takes the real visitor IP from the `CF-Connecting-IP` header. It trusts that header only from Cloudflare's addresses, so it can't be faked. Without it, the login rate limit would treat many customers as one visitor. The list refreshes weekly (`/etc/cron.weekly/icepops-cloudflare-realip`).
+
+**Optional, extra safety:** allow ports 80 and 443 only from Cloudflare's IP ranges in your server or cloud firewall, so nobody can bypass Cloudflare by using the server's IP directly.
+
+## Using the certificate your nginx already has
+
+If nginx on the server already serves another site over HTTPS, Icepops can use the same certificate files where they are:
+
+```
+deploy/deploy.sh ubuntu@YOUR_SERVER_IP --setup icepops.yourdomain.com --use-server-cert
+```
+
+[deploy/use-server-cert.sh](deploy/use-server-cert.sh) reads your nginx configuration (`nginx -T`), lists every certificate it uses, and picks the first one that covers your Icepops domain and has a matching key. It then runs the usual checks and points the Icepops site at those files. Nothing is copied, so when the certificate is renewed (by you, or by certbot for `/etc/letsencrypt` certificates) Icepops uses the new one after the next nginx reload.
+
+To name the files yourself (find them with `sudo grep -rn ssl_certificate /etc/nginx/`):
+
+```
+deploy/deploy.sh ubuntu@YOUR_SERVER_IP --setup icepops.yourdomain.com \
+  --server-cert /etc/ssl/certs/yourdomain.crt --server-key /etc/ssl/private/yourdomain.key
+```
+
+**Which domain to use:**
+
+- **Your certificate must cover it.** A wildcard certificate (`*.yourdomain.com`) covers any subdomain such as `icepops.yourdomain.com`. A certificate for `yourdomain.com` and `www.yourdomain.com` only covers those two names.
+- **It can't be a domain your existing site already serves.** Two nginx sites with the same domain make nginx silently ignore one of them, so the script stops and names the site that uses it.
+- **The usual answer is a subdomain** such as `icepops.yourdomain.com`, with a wildcard certificate (or one that lists that name), and a DNS A record pointing the subdomain at the server.
+
+## Uploading your own SSL certificate
+
+You need three files from your certificate provider, in PEM format (text files starting with `-----BEGIN`):
+
+| Option | File | Often called |
+| --- | --- | --- |
+| `--cert` | Your domain's certificate | `certificate.crt`, `your_domain.crt` |
+| `--key` | The private key you made with the certificate request, without a passphrase | `private.key`, `your_domain.key` |
+| `--chain` | The CA's intermediate certificates (optional, but include it if you have it) | `ca-bundle.crt`, `ca_bundle.crt`, `intermediate.crt` |
+
+Before anything changes, `deploy/install-ssl.sh` checks:
+
+- that the key belongs to the certificate;
+- that the certificate covers your domain (wildcards like `*.example.com` count);
+- that it hasn't expired, with a warning if it expires within 30 days.
+
+It then joins the certificate and bundle into `/etc/icepops/ssl/fullchain.pem`, stores the key as `/etc/icepops/ssl/privkey.pem` (readable only by root), and switches nginx to [deploy/nginx-icepops-ssl.conf](deploy/nginx-icepops-ssl.conf). If nginx rejects the result, the previous settings are put back. The uploaded copies are deleted from the server afterwards.
+
+**Renewing:** your own certificate doesn't renew automatically. When you get the new files, run:
+
+```
+deploy/deploy.sh ubuntu@YOUR_SERVER_IP --cert new.crt --key new.key --chain ca-bundle.crt
+```
+
+**Other formats:**
+
+- **A `.pfx` / `.p12` file:** split it first with `openssl pkcs12 -in cert.pfx -clcerts -nokeys -out certificate.crt` and `openssl pkcs12 -in cert.pfx -nocerts -nodes -out private.key`.
+- **A key with a passphrase:** remove the passphrase with `openssl pkey -in private.key -out private-nopass.key`.
 
 ## Settings
 

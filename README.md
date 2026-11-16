@@ -93,7 +93,7 @@ Changing plans while a Razorpay subscription is active isn't automatic yet: the 
 
 ## Hosting online
 
-**On your own Ubuntu server with nginx and PostgreSQL:** see [DEPLOY.md](DEPLOY.md). One command sets it all up: `deploy/deploy.sh ubuntu@SERVER_IP --setup your-domain.com you@example.com`.
+**On your own Ubuntu server with nginx and PostgreSQL:** see [DEPLOY.md](DEPLOY.md). One command sets it all up, using the SSL certificate nginx already has (`--use-server-cert`), certificate files you upload (`--cert`, `--key`, `--chain`), or a free Let's Encrypt one (`--email`).
 
 **On a hosting platform:**
 

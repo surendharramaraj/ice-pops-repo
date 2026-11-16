@@ -3,16 +3,20 @@
 # uploaded release (deploy.sh --setup does this for you):
 #
 #   sudo bash deploy/setup-server.sh icepops.example.com you@example.com
+#   sudo bash deploy/setup-server.sh icepops.example.com "" --own-cert
 #
 # It installs nginx, Node.js 22 and certbot; creates the icepops system user,
 # the PostgreSQL role and database, the settings file, the systemd service and
-# the nginx site; then asks Let's Encrypt for an HTTPS certificate.
+# the nginx site; then asks Let's Encrypt for an HTTPS certificate, unless
+# --own-cert says you'll install your own with install-ssl.sh.
 # Safe to run again: existing settings and the database password are kept.
 
 set -euo pipefail
 
 DOMAIN="${1:-}"
 EMAIL="${2:-}"
+OWN_CERT=0
+[ "${3:-}" = "--own-cert" ] && OWN_CERT=1
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR=/opt/icepops
 ENV_DIR=/etc/icepops
@@ -66,18 +70,34 @@ install -m 644 "$HERE/icepops.service" /etc/systemd/system/icepops.service
 systemctl daemon-reload
 systemctl enable icepops
 
-say "Setting up nginx for $DOMAIN"
-sed "s/__DOMAIN__/$DOMAIN/g" "$HERE/nginx-icepops.conf" > /etc/nginx/sites-available/icepops
-ln -sf /etc/nginx/sites-available/icepops /etc/nginx/sites-enabled/icepops
-nginx -t
-systemctl reload nginx
+say "Trusting visitor IPs from Cloudflare"
+mkdir -p /etc/nginx/snippets
+SKIP_NGINX=1 bash "$HERE/cloudflare-realip.sh" || true
+[ -f /etc/nginx/snippets/icepops-realip.conf ] || : > /etc/nginx/snippets/icepops-realip.conf
+install -m 755 "$HERE/cloudflare-realip.sh" /usr/local/sbin/icepops-cloudflare-realip
+printf '#!/bin/sh\n# Keeps the Cloudflare IP ranges nginx trusts up to date (Icepops).\n/usr/local/sbin/icepops-cloudflare-realip >/dev/null\n' > /etc/cron.weekly/icepops-cloudflare-realip
+chmod 755 /etc/cron.weekly/icepops-cloudflare-realip
+
+if [ "$OWN_CERT" -eq 1 ] && grep -qs "listen 443" /etc/nginx/sites-available/icepops; then
+  echo "nginx already serves Icepops over HTTPS; leaving its settings alone."
+else
+  say "Setting up nginx for $DOMAIN"
+  ( . "$HERE/ssl-lib.sh"; check_no_conflict "$DOMAIN" )
+  APP_PORT="$( . "$HERE/ssl-lib.sh"; app_port )"
+  sed -e "s/__DOMAIN__/$DOMAIN/g" -e "s/__PORT__/$APP_PORT/g" "$HERE/nginx-icepops.conf" > /etc/nginx/sites-available/icepops
+  ln -sf /etc/nginx/sites-available/icepops /etc/nginx/sites-enabled/icepops
+  nginx -t
+  systemctl reload nginx
+fi
 
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   say "Opening ports 80 and 443 in the firewall"
   ufw allow 'Nginx Full'
 fi
 
-if [ -n "$EMAIL" ]; then
+if [ "$OWN_CERT" -eq 1 ]; then
+  echo "Using your own SSL certificate (set up in the next step), so Let's Encrypt is skipped."
+elif [ -n "$EMAIL" ]; then
   say "Getting an HTTPS certificate from Let's Encrypt"
   if certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$EMAIL" --redirect; then
     echo "HTTPS is on. Certificates renew automatically."

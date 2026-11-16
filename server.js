@@ -1037,7 +1037,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/healthz") {
       try {
         await db.query("SELECT 1");
-        return send(res, 200, "ok", "text/plain; charset=utf-8");
+        return send(res, 200, "icepops ok", "text/plain; charset=utf-8");
       } catch (e) {
         return send(res, 503, "database unreachable", "text/plain; charset=utf-8");
       }
@@ -1072,6 +1072,14 @@ async function start() {
   db = await connect({ demo: DEMO });
   if (DEMO) await require("./lib/demo").ensureDemo(db, runSqlFile);
   await db.query("DELETE FROM sessions WHERE expires_at < now()");
+  server.on("error", (e) => {
+    if (e.code === "EADDRINUSE") {
+      console.error(`Port ${PORT} is already used by another program, so Icepops can't start. Set PORT to a free port (on a server: in /etc/icepops/icepops.env), or stop the other program.`);
+    } else {
+      console.error(e);
+    }
+    process.exit(1);
+  });
   server.listen(PORT, HOST, () => {
     const base = `http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`;
     console.log(`Icepops is running. Database: ${db.kind}. Billing: ${billing.MODE} mode.`);
